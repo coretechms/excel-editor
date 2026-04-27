@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>엑셀 Test Date 변경 도구 </title>
+  <title>엑셀 Test Date 변경 도구</title>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
@@ -729,7 +729,7 @@
           <label>저장시간</label>
           <div class="interval-grid">
             <div>
-              <input id="saveOffsetMin" type="number" min="40" step="1" value="2" inputmode="numeric" />
+              <input id="saveOffsetMin" type="number" min="0" step="1" value="2" inputmode="numeric" />
               <div class="help">최종항목 시간보다 늦게 적용할 분</div>
             </div>
             <div>
@@ -1170,8 +1170,21 @@ const firebaseConfig = {
     let firebasePasswordBound = false;
     let firebasePasswordsLoaded = false;
     let firebaseInitStarted = false;
+    let firebaseProgramStateInitialWriteDone = false;
 
     window.setTimeout(() => initFirebase(), 0);
+
+    async function ensureFirebaseReady() {
+      if (firebaseReady && firebaseDb) return true;
+      initFirebase();
+
+      if (firebaseReady && firebaseDb) return true;
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+      if (!firebaseReady || !firebaseDb) initFirebase();
+
+      return !!(firebaseReady && firebaseDb);
+    }
 
     function withTimeout(promise, timeoutMs, fallbackValue) {
       return Promise.race([
@@ -1301,11 +1314,13 @@ const firebaseConfig = {
       }
     }
 
-    function savePasswordsToFirebase() {
-      const ref = firebaseRef("passwords");
+    async function savePasswordsToFirebase() {
+      const ready = await ensureFirebaseReady();
+      const ref = ready ? firebaseRef("passwords") : null;
+
       if (!ref) {
         setFirebaseStatus("warn", "Firebase 비밀번호 저장 실패: 연결 설정을 확인하세요.");
-        return Promise.resolve(false);
+        return false;
       }
 
       const payload = {
@@ -1314,16 +1329,15 @@ const firebaseConfig = {
         updatedAt: new Date().toISOString()
       };
 
-      return ref.update(payload)
-        .then(() => {
-          setFirebaseStatus("ok", "Firebase 비밀번호 저장 완료");
-          return true;
-        })
-        .catch(error => {
-          console.error(error);
-          setFirebaseStatus("warn", "Firebase 비밀번호 저장 실패: " + error.message);
-          return false;
-        });
+      try {
+        await ref.update(payload);
+        setFirebaseStatus("ok", "Firebase 비밀번호 저장 완료");
+        return true;
+      } catch (error) {
+        console.error(error);
+        setFirebaseStatus("warn", "Firebase 비밀번호 저장 실패: " + error.message);
+        return false;
+      }
     }
 
     function bindFirebasePasswordSync() {
@@ -1359,11 +1373,14 @@ const firebaseConfig = {
       });
     }
 
-    function saveProgramStateToFirebase() {
-      const ref = firebaseRef("programState");
+    async function saveProgramStateToFirebase() {
+      const ready = await ensureFirebaseReady();
+      const ref = ready ? firebaseRef("programState") : null;
+
       if (!ref) {
         setFirebaseStatus("warn", "Firebase 저장 실패: 연결 설정을 확인하세요.");
-        return Promise.resolve(false);
+        if (workStatus) setStatus(workStatus, "warn", "Firebase 저장 실패: 연결 설정 또는 인터넷 연결을 확인하세요.");
+        return false;
       }
 
       const payload = typeof getProgramStatePayload === "function"
@@ -1372,21 +1389,26 @@ const firebaseConfig = {
           updatedAt: new Date().toISOString()
         };
 
-      return ref.update(payload)
-        .then(() => {
-          setFirebaseStatus("ok", "현재 설정 Firebase 저장 완료");
-          return true;
-        })
-        .catch(error => {
-          console.error(error);
-          setFirebaseStatus("warn", "현재 설정 저장 실패: " + error.message);
-          return false;
-        });
+      try {
+        await ref.update(payload);
+        setFirebaseStatus("ok", "현재 설정 Firebase 저장 완료");
+        if (workStatus) setStatus(workStatus, "ok", "Firebase 실시간 저장 완료");
+        return true;
+      } catch (error) {
+        console.error(error);
+        setFirebaseStatus("warn", "현재 설정 저장 실패: " + error.message);
+        if (workStatus) setStatus(workStatus, "warn", "Firebase 저장 실패: " + error.message);
+        return false;
+      }
     }
 
     window.addEventListener("DOMContentLoaded", () => {
       bindProgramInputAutoSave();
       initFirebase();
+      setTimeout(() => {
+        if (!firebaseProgramStateBound) bindFirebaseProgramStateSync();
+        if (!firebasePasswordBound) bindFirebasePasswordSync();
+      }, 800);
 
       const firebaseReconnectBtn = document.getElementById("firebaseReconnectBtn");
       const firebaseSaveNowBtn = document.getElementById("firebaseSaveNowBtn");
@@ -1490,13 +1512,22 @@ const firebaseConfig = {
 
       ref.on("value", snapshot => {
         const data = snapshot.val();
-        if (!data) return;
+
+        if (!data) {
+          if (!firebaseProgramStateInitialWriteDone) {
+            firebaseProgramStateInitialWriteDone = true;
+            saveProgramStateToFirebase().catch(() => {});
+          }
+          return;
+        }
+
         applyProgramStateFromFirebase(data);
       }, error => {
         console.error(error);
         if (typeof setFirebaseStatus === "function") {
           setFirebaseStatus("warn", "Firebase 실시간 읽기 실패: " + error.message);
         }
+        if (workStatus) setStatus(workStatus, "warn", "Firebase 실시간 읽기 실패: " + error.message);
       });
     }
 
@@ -1508,7 +1539,7 @@ const firebaseConfig = {
         if (typeof saveProgramStateToFirebase === "function") {
           saveProgramStateToFirebase();
         }
-      }, 500);
+      }, 3000);
     }
 
     function bindProgramInputAutoSave() {
