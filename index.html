@@ -709,8 +709,8 @@
           <div class="form-row">
             <label for="dateFormat">표시 형식</label>
             <select id="dateFormat">
-              <option value="slash" selected>2026/04/29 08:30</option>
-              <option value="dash">2026-04-29 08:30</option>
+              <option value="slash" id="formatSlashOption" selected>2026/04/29 08:30</option>
+              <option value="dash" id="formatDashOption">2026-04-29 08:30</option>
             </select>
           </div>
         </div>
@@ -721,7 +721,7 @@
           <label>저장시간</label>
           <div class="interval-grid">
             <div>
-              <input id="saveOffsetMin" type="number" min="0" step="1" value="2" inputmode="numeric" />
+              <input id="saveOffsetMin" type="number" min="40" step="1" value="2" inputmode="numeric" />
               <div class="help">최종항목 시간보다 늦게 적용할 분</div>
             </div>
             <div>
@@ -1385,6 +1385,80 @@ const firebaseConfig = {
       return String(n).padStart(2, '0');
     }
 
+
+    function getCurrentTimeText() {
+      const now = new Date();
+      return `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+    }
+
+    function getCurrentDateText() {
+      const now = new Date();
+      return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    }
+
+    function extractLeadingDateFromFileName(fileName) {
+      const name = String(fileName || '').trim();
+
+      // 파일명 맨 앞 날짜만 인식한다.
+      // 가능 예:
+      // 20260430_검사.xlsx
+      // 2026-04-30_검사.xlsx
+      // 2026.04.30_검사.xlsx
+      // 2026_04_30_검사.xlsx
+      // 2026 04 30 검사.xlsx
+      // 2026년 4월 30일 검사.xlsx
+      let m = name.match(/^(20\d{2})[\s._-]?(0?[1-9]|1[0-2])[\s._-]?(0?[1-9]|[12]\d|3[01])(?:\D|$)/);
+      if (m) {
+        return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+      }
+
+      m = name.match(/^(20\d{2})\s*년\s*(0?[1-9]|1[0-2])\s*월\s*(0?[1-9]|[12]\d|3[01])\s*일?/);
+      if (m) {
+        return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+      }
+
+      return '';
+    }
+
+    function getMinuteTimeText(timeValue) {
+      const parts = String(timeValue || '00:00:00').split(':');
+      return `${pad2(parts[0] || 0)}:${pad2(parts[1] || 0)}`;
+    }
+
+    function updateDateFormatLabels() {
+      const targetDate = document.getElementById('targetDate');
+      const startTime = document.getElementById('startTime');
+      const slashOption = document.getElementById('formatSlashOption');
+      const dashOption = document.getElementById('formatDashOption');
+
+      if (!targetDate || !startTime || !slashOption || !dashOption) return;
+
+      const dateValue = targetDate.value || getCurrentDateText();
+      const timeText = getMinuteTimeText(startTime.value || getCurrentTimeText());
+
+      slashOption.textContent = `${dateValue.replaceAll('-', '/')} ${timeText}`;
+      dashOption.textContent = `${dateValue} ${timeText}`;
+    }
+
+    function applyDateTimeFromSelectedFileName(fileName) {
+      const targetDate = document.getElementById('targetDate');
+      const startTime = document.getElementById('startTime');
+
+      if (!targetDate || !startTime) return;
+
+      const fileDate = extractLeadingDateFromFileName(fileName);
+
+      // 파일명 앞 날짜가 있으면 그 날짜 적용.
+      // 없으면 기존 변경 날짜는 유지하고, 시간만 현재 시간으로 적용.
+      if (fileDate) {
+        targetDate.value = fileDate;
+      }
+
+      startTime.value = getCurrentTimeText();
+      updateDateFormatLabels();
+    }
+
+
     function normalizeTime(t) {
       const parts = String(t || '00:00:00').split(':');
       return `${pad2(parts[0] || 0)}:${pad2(parts[1] || 0)}:${pad2(parts[2] || 0)}`;
@@ -1800,6 +1874,8 @@ const firebaseConfig = {
         return;
       }
 
+      applyDateTimeFromSelectedFileName(selectedFile.name);
+
       setStatus(fileStatus, '', `파일 분석 중: ${selectedFile.name}`);
       setStatus(workStatus, '', '엑셀 파일을 읽는 중입니다.');
 
@@ -1830,6 +1906,12 @@ const firebaseConfig = {
     convertBtn.addEventListener('click', applyChanges);
     downloadBtn.addEventListener('click', downloadChangedFile);
 
+    document.getElementById('targetDate')?.addEventListener('input', updateDateFormatLabels);
+    document.getElementById('targetDate')?.addEventListener('change', updateDateFormatLabels);
+    document.getElementById('startTime')?.addEventListener('input', updateDateFormatLabels);
+    document.getElementById('startTime')?.addEventListener('change', updateDateFormatLabels);
+    updateDateFormatLabels();
+
     resetBtn.addEventListener('click', () => {
       excelFile.value = '';
       selectedFile = null;
@@ -1845,6 +1927,7 @@ const firebaseConfig = {
       if (document.getElementById('saveOffsetMin')) document.getElementById('saveOffsetMin').value = '2';
       if (document.getElementById('saveOffsetSec')) document.getElementById('saveOffsetSec').value = '0';
       document.getElementById('dateFormat').value = 'slash';
+      updateDateFormatLabels();
       document.querySelector('input[name="mode"][value="all"]').checked = true;
       document.getElementById('noStart').value = '000002';
       document.getElementById('noEnd').value = '000305';
