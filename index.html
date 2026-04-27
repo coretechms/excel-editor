@@ -545,12 +545,12 @@
 <body>
   <section id="loginScreen" class="login-screen">
     <div class="login-box">
-      <h2 class="login-title">기본화면 진입 비밀번호</h2>
-      <p class="login-desc">엑셀 Test Date 변경 도구 기본화면에 진입하려면 비밀번호를 입력하세요.</p>
+      <h2 class="login-title">엑셀변환 진입 비밀번호</h2>
+      <p class="login-desc">진입하려면 비밀번호를 입력하세요.</p>
 
       <div class="form-row">
         <label for="adminPasswordInput">비밀번호</label>
-        <input id="adminPasswordInput" type="password" autocomplete="current-password" placeholder="기본화면 진입 비밀번호 입력" />
+        <input id="adminPasswordInput" type="password" autocomplete="current-password" placeholder="비밀번호 입력" />
       </div>
 
       <div class="login-actions">
@@ -657,10 +657,10 @@
 <section class="title-box">
       <h1>엑셀 Test Date 변경 도구</h1>
       <p class="desc">
-        엑셀 파일을 선택한 뒤, 각 폼 상단의 <strong>Test Date: YYYY/MM/DD HH:MM</strong> 값을 원하는 날짜와 시간으로 변경하고 수정본을 다운로드합니다.
+        엑셀 파일을 선택한 뒤 <strong>Test Date: YYYY/MM/DD HH:MM</strong> 원하는 날짜와 시간으로 변경하고 수정 파일을 다운로드합니다.
       </p>
       <p class="desc">
-        (주)코아텍비아이티
+        <strong>(주)코아텍 비아이티</strong>
       </p>
     </section>
 
@@ -674,7 +674,7 @@
         <div class="form-row">
           <label for="excelFile">엑셀 파일</label>
           <input id="excelFile" type="file" accept=".xlsx,.xlsm,.xls" />
-          <div class="help">브라우저에서 직접 읽고 수정합니다. 원본 파일은 변경하지 않습니다. 권장 형식은 .xlsx 입니다.</div>
+          <div class="help">원본 파일은 변경하지 않습니다. <strong>권장 형식은 .xlsx 입니다.</strong></div>
         </div>
 
         <div class="status" id="fileStatus">아직 파일이 선택되지 않았습니다.</div>
@@ -688,7 +688,7 @@
 
         <div class="two-col">
           <div class="form-row">
-            <label for="targetDate">변경 날짜</label>
+            <label for="targetDate">변경 희망 날짜</label>
             <input id="targetDate" type="date" value="2026-04-29" />
           </div>
 
@@ -726,15 +726,15 @@
 
 
         <div class="form-row">
-          <label>저장시간</label>
+          <label>파일 저장시간 간격</label>
           <div class="interval-grid">
             <div>
               <input id="saveOffsetMin" type="number" min="0" step="1" value="2" inputmode="numeric" />
-              <div class="help">최종항목 시간보다 늦게 적용할 분</div>
+              <div class="help">최종항목 시간보다 늦게 적용할 [ 분 ]</div>
             </div>
             <div>
               <input id="saveOffsetSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" />
-              <div class="help">초</div>
+              <div class="help">[ 초 ]</div>
             </div>
           </div>
           </div>
@@ -810,7 +810,7 @@
         <div class="button-row">
           <button class="btn-sub" type="button" id="previewBtn">미리보기 생성</button>
           <button class="btn-primary" type="button" id="convertBtn">변경 실행</button>
-          <button class="btn-sub" type="button" id="downloadBtn" disabled>수정된 엑셀 다운로드</button>
+          <button class="btn-sub" type="button" id="downloadBtn" disabled>수정된 엑셀 저장 위치 선택</button>
           <button class="btn-danger" type="button" id="resetBtn">초기화</button>
         </div>
 
@@ -1154,7 +1154,7 @@ let selectedFile = null;
 const firebaseConfig = {
   apiKey: "AIzaSyCaQXcOrb9Rows4-1SofyWGFVaSijMVgbI",
   authDomain: "excel-editor-ddd20.firebaseapp.com",
-  databaseURL: "https://excel-editor-ddd20-default-rtdb.asia-southeast1.firebasedatabase.app",
+  databaseURL: "https://excel-editor-ddd20-default-rtdb.firebaseio.com",
   projectId: "excel-editor-ddd20",
   storageBucket: "excel-editor-ddd20.firebasestorage.app",
   messagingSenderId: "711021684436",
@@ -2174,7 +2174,7 @@ const firebaseConfig = {
 
     function makeOutputName(originalName) {
       const base = originalName.replace(/\.[^.]+$/, '');
-      return `${base}_TestDate수정본.xlsx`;
+      return `${base}_수정본.xlsx`;
     }
 
     async function applyChanges() {
@@ -2221,12 +2221,47 @@ const firebaseConfig = {
       setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}${lotUpdate ? ' / Lot Number 1건 수정됨' : ''}. 다운로드 버튼을 누르세요.`);
     }
 
-    function downloadChangedFile() {
+    async function downloadChangedFile() {
       if (!changedBlob || !changedFileName) {
         setStatus(workStatus, 'warn', '먼저 변경 실행을 완료하세요.');
         return;
       }
 
+      // Chrome / Edge 등 File System Access API 지원 브라우저에서는
+      // 저장 위치와 파일명을 사용자가 직접 선택할 수 있는 창을 띄운다.
+      if (window.showSaveFilePicker) {
+        try {
+          const fileHandle = await window.showSaveFilePicker({
+            suggestedName: changedFileName,
+            types: [
+              {
+                description: 'Excel Workbook',
+                accept: {
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+                }
+              }
+            ]
+          });
+
+          const writable = await fileHandle.createWritable();
+          await writable.write(changedBlob);
+          await writable.close();
+          setStatus(workStatus, 'ok', `저장 완료: ${changedFileName}`);
+          return;
+        } catch (error) {
+          // 사용자가 저장 창에서 취소한 경우는 오류가 아니라 안내만 표시한다.
+          if (error && error.name === 'AbortError') {
+            setStatus(workStatus, 'warn', '저장이 취소되었습니다. 다운로드 버튼을 다시 누르면 저장 위치를 다시 선택할 수 있습니다.');
+            return;
+          }
+
+          console.error(error);
+          setStatus(workStatus, 'warn', '저장 위치 선택 방식이 실패했습니다. 기본 다운로드 방식으로 저장합니다.');
+        }
+      }
+
+      // Safari / Firefox 또는 일부 모바일 브라우저처럼 저장 위치 선택을 지원하지 않는 경우
+      // 기존 브라우저 다운로드 방식으로 자동 저장한다.
       const url = URL.createObjectURL(changedBlob);
       const a = document.createElement('a');
       a.href = url;
