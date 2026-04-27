@@ -712,6 +712,7 @@
               <option value="slash" id="formatSlashOption" selected>2026/04/29 08:30</option>
               <option value="dash" id="formatDashOption">2026-04-29 08:30</option>
             </select>
+            <div class="help">표시 형식은 화면 예시용이며, 실제 변환은 시작 시간 기준으로 저장됩니다.</div>
           </div>
         </div>
 
@@ -1495,7 +1496,7 @@ const firebaseConfig = {
       // 저장시간은 사용자가 입력한 분+초 값을 기준으로 최종 Test Date 시간에 더한다.
       d.setSeconds(d.getSeconds() + (saveOffsetMin * 60) + saveOffsetSec);
       // Creation Time도 Test Date와 동일하게 초는 출력하지 않고 분까지만 표시한다.
-      return formatDateObj(d, format, false);
+      return formatExcelTestDateValue(d);
     }
 
     function pad2(n) {
@@ -1581,6 +1582,15 @@ const firebaseConfig = {
       return `${pad2(parts[0] || 0)}:${pad2(parts[1] || 0)}:${pad2(parts[2] || 0)}`;
     }
 
+
+    function formatExcelTestDateValue(d) {
+      // 데이터 변환/저장용 값은 표시 형식 선택값을 무시한다.
+      // 항상 변경 날짜 + 시작 시간 기준으로 계산하고, 엑셀 입력값은 YYYY/MM/DD HH:MM 형식으로 저장한다.
+      const date = `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}`;
+      const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      return `${date} ${time}`;
+    }
+
     function formatDateObj(d, format, includeSeconds) {
       const sep = format === 'dash' ? '-' : '/';
       const date = `${d.getFullYear()}${sep}${pad2(d.getMonth() + 1)}${sep}${pad2(d.getDate())}`;
@@ -1605,28 +1615,21 @@ const firebaseConfig = {
     }
 
     function buildNewDateText(item, settings, changedIndex) {
-      // 증가 간격은 초까지 누적 계산한다. 단, 출력은 formatDateObj()에서 항상 분까지만 표시한다.
+      // 데이터 변환 기준:
+      // 1) 표시 형식 선택값은 무시
+      // 2) 변경 날짜 + 시작 시간을 기준으로 계산
+      // 3) 증가 간격은 분+초 단위로 누적
+      // 4) 출력/저장은 항상 YYYY/MM/DD HH:MM
       const intervalSeconds = (settings.intervalMin * 60) + settings.intervalSec;
-      const includeSeconds = false;
       const addSeconds = intervalSeconds * changedIndex;
 
-      if (settings.mode === 'dateOnly') {
-        const oldTime = normalizeTime(item.oldTime);
-        const d = new Date(`${settings.date}T${oldTime}`);
-        return formatDateObj(d, settings.format, item.oldTime.split(':').length === 3);
-      }
+      const baseDate = settings.date || oldDateToInputDate(item.oldDate);
+      const baseTime = normalizeTime(settings.time);
+      const d = new Date(`${baseDate}T${baseTime}`);
 
-      if (settings.mode === 'timeOnly') {
-        const oldInputDate = oldDateToInputDate(item.oldDate);
-        const d = new Date(`${oldInputDate}T${normalizeTime(settings.time)}`);
-        d.setSeconds(d.getSeconds() + addSeconds);
-        const oldSepFormat = item.oldDate.includes('-') ? 'dash' : settings.format;
-        return formatDateObj(d, oldSepFormat, includeSeconds);
-      }
-
-      const d = new Date(`${settings.date}T${normalizeTime(settings.time)}`);
       d.setSeconds(d.getSeconds() + addSeconds);
-      return formatDateObj(d, settings.format, includeSeconds);
+
+      return formatExcelTestDateValue(d);
     }
 
     function getPreviewRows(limit = 10) {
