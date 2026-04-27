@@ -697,10 +697,10 @@
 
         <div class="two-col">
           <div class="form-row">
-            <label>증가 간격 [연마시간]</label>
+            <label>증가 간격</label>
             <div class="interval-grid">
               <div>
-                <input id="intervalMin" type="number" min="0" step="1" value="7" inputmode="numeric" />
+                <input id="intervalMin" type="number" min="0" step="1" value="0" inputmode="numeric" />
                 <div class="help">분</div>
               </div>
               <div>
@@ -1133,6 +1133,7 @@ let selectedFile = null;
 const firebaseConfig = {
   apiKey: "AIzaSyCaQXcOrb9Rows4-1SofyWGFVaSijMVgbI",
   authDomain: "excel-editor-ddd20.firebaseapp.com",
+  databaseURL: "https://excel-editor-ddd20-default-rtdb.firebaseio.com",
   projectId: "excel-editor-ddd20",
   storageBucket: "excel-editor-ddd20.firebasestorage.app",
   messagingSenderId: "711021684436",
@@ -1145,6 +1146,7 @@ const firebaseConfig = {
     let firebaseConnected = false;
     let firebaseReady = false;
     let suppressFirebasePasswordSave = false;
+    let firebasePasswordBound = false;
 
     function isFirebaseConfigReady() {
       return firebaseConfig.apiKey &&
@@ -1214,21 +1216,22 @@ const firebaseConfig = {
     function savePasswordsToFirebase() {
       const ref = firebaseRef("passwords");
       if (!ref) {
-        setFirebaseStatus("warn", "Firebase 저장 실패: 연결 설정을 확인하세요.");
-        return;
+        setFirebaseStatus("warn", "Firebase 비밀번호 저장 실패: 연결 설정을 확인하세요.");
+        return Promise.reject(new Error("Firebase password ref is not ready"));
       }
 
       const payload = {
-        entryPassword: typeof getEntryPassword === "function" ? getEntryPassword() : (localStorage.getItem("excelTestDateEntryPassword") || "1234"),
-        adminModePassword: typeof getAdminModePassword === "function" ? getAdminModePassword() : (localStorage.getItem("excelTestDateAdminModePassword") || "4321"),
+        entryPassword: getEntryPassword(),
+        adminModePassword: getAdminModePassword(),
         updatedAt: new Date().toISOString()
       };
 
-      ref.update(payload)
-        .then(() => setFirebaseStatus("ok", "Firebase 저장 완료"))
+      return ref.update(payload)
+        .then(() => setFirebaseStatus("ok", "Firebase 비밀번호 저장 완료"))
         .catch(error => {
           console.error(error);
-          setFirebaseStatus("warn", "Firebase 저장 실패: " + error.message);
+          setFirebaseStatus("warn", "Firebase 비밀번호 저장 실패: " + error.message);
+          throw error;
         });
     }
 
@@ -1236,25 +1239,33 @@ const firebaseConfig = {
       const ref = firebaseRef("passwords");
       if (!ref) return;
 
+      if (firebasePasswordBound) return;
+      firebasePasswordBound = true;
+
       ref.on("value", snapshot => {
         const data = snapshot.val();
-        if (!data) return;
+
+        if (!data) {
+          // Firebase에 비밀번호 데이터가 아직 없으면 현재 로컬 기본값을 최초 저장한다.
+          savePasswordsToFirebase();
+          return;
+        }
 
         suppressFirebasePasswordSave = true;
 
-        if (data.entryPassword) {
-          localStorage.setItem("excelTestDateEntryPassword", String(data.entryPassword));
+        if (typeof data.entryPassword === "string" && data.entryPassword.length > 0) {
+          localStorage.setItem(ENTRY_PASSWORD_KEY, data.entryPassword);
         }
 
-        if (data.adminModePassword) {
-          localStorage.setItem("excelTestDateAdminModePassword", String(data.adminModePassword));
+        if (typeof data.adminModePassword === "string" && data.adminModePassword.length > 0) {
+          localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, data.adminModePassword);
         }
 
         suppressFirebasePasswordSave = false;
-        setFirebaseStatus("ok", "Firebase 비밀번호 동기화 완료");
+        setFirebaseStatus("ok", "Firebase 비밀번호 실시간 동기화 완료");
       }, error => {
         console.error(error);
-        setFirebaseStatus("warn", "Firebase 읽기 실패: " + error.message);
+        setFirebaseStatus("warn", "Firebase 비밀번호 읽기 실패: " + error.message);
       });
     }
 
@@ -2016,7 +2027,7 @@ const firebaseConfig = {
 
     function makeOutputName(originalName) {
       const base = originalName.replace(/\.[^.]+$/, '');
-      return `${base}_수정본.xlsx`;
+      return `${base}_TestDate수정본.xlsx`;
     }
 
     async function applyChanges() {
