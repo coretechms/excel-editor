@@ -518,7 +518,11 @@
       background: var(--danger);
     }
 
-    @media (max-width: 760px) {
+
+    .preview-title-right .last-date-time {
+      word-break: break-all;
+    }
+@media (max-width: 760px) {
       .page { padding: 14px 10px 28px; }
 
       .grid,
@@ -734,7 +738,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card section-3-4-compact">
         <div class="card-title">
           3. 변경 방식
           <span class="badge">대상 선택</span>
@@ -763,7 +767,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card section-3-4-compact">
         <div class="card-title">
           4. NO 범위 설정
           <span class="badge">선택 사항</span>
@@ -790,6 +794,7 @@
         <div class="card-title">
           <span>5. 미리보기</span>
           <div class="preview-title-right">
+            <span>* Lot Number : <span class="last-date-time" id="lotNumberPreview">-</span></span>
             <span>* 최종항목 날짜/시간 : <span class="last-date-time" id="lastDateTime">-</span></span>
             <span>* Creation Time 변경값 : <span class="last-date-time" id="creationTimePreview">-</span></span>
             <span class="badge" id="previewCount">0건</span>
@@ -840,6 +845,7 @@
     const previewCount = document.getElementById('previewCount');
     const lastDateTime = document.getElementById('lastDateTime');
     const creationTimePreview = document.getElementById('creationTimePreview');
+    const lotNumberPreview = document.getElementById('lotNumberPreview');
     const previewBtn = document.getElementById('previewBtn');
     const convertBtn = document.getElementById('convertBtn');
     const downloadBtn = document.getElementById('downloadBtn');
@@ -1115,6 +1121,7 @@ let selectedFile = null;
     let workbook = null;
     let detectedItems = [];
     let creationTimeItem = null;
+    let lotNumberItem = null;
     let changedBlob = null;
     let changedFileName = '';
 
@@ -1477,6 +1484,28 @@ const firebaseConfig = {
       };
     }
 
+
+    function parseLotNumber(text) {
+      // DataAnalysis 시트의 Lot Number 예:
+      // Lot Number: 20260428-00
+      // Lot Number: 20260428-007_MC1_CSF_025
+      // 앞 8자리 날짜만 Creation Time 날짜로 바꾸고, 뒤 문구는 그대로 유지한다.
+      const m = String(text).match(/(lot\s*number\s*:\s*)(\d{8})([-_A-Za-z0-9가-힣 .:/]*)/i);
+      if (!m) return null;
+      return {
+        prefix: m[1],
+        yyyymmdd: m[2],
+        suffix: m[3] || '',
+        full: m[0]
+      };
+    }
+
+    function dateTimeTextToYYYYMMDD(dateTimeText) {
+      const m = String(dateTimeText || '').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+      if (!m) return '';
+      return `${m[1]}${pad2(m[2])}${pad2(m[3])}`;
+    }
+
     function parseDateTimeTextToDate(dateTimeText) {
       const m = String(dateTimeText || '').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       if (!m) return null;
@@ -1712,12 +1741,35 @@ const firebaseConfig = {
       };
     }
 
+
+    function getLotNumberUpdate() {
+      if (!lotNumberItem) return null;
+
+      const creationUpdate = getCreationTimeUpdate();
+      if (!creationUpdate || !creationUpdate.newDateTime) return null;
+
+      const yyyymmdd = dateTimeTextToYYYYMMDD(creationUpdate.newDateTime);
+      if (!yyyymmdd) return null;
+
+      const after = lotNumberItem.originalText.replace(
+        lotNumberItem.parsed.full,
+        `${lotNumberItem.parsed.prefix}${yyyymmdd}${lotNumberItem.parsed.suffix}`
+      );
+
+      return {
+        item: lotNumberItem,
+        after,
+        newLotNumberDate: yyyymmdd
+      };
+    }
+
     function renderPreview() {
       if (!workbook || detectedItems.length === 0) {
         previewBox.innerHTML = '<div class="empty">변경할 Test Date 항목이 없습니다.</div>';
         previewCount.textContent = '0건';
         lastDateTime.textContent = '-';
         if (creationTimePreview) creationTimePreview.textContent = '-';
+        if (lotNumberPreview) lotNumberPreview.textContent = '-';
         return;
       }
 
@@ -1729,6 +1781,7 @@ const firebaseConfig = {
         previewCount.textContent = '0건';
         lastDateTime.textContent = '-';
         if (creationTimePreview) creationTimePreview.textContent = '-';
+        if (lotNumberPreview) lotNumberPreview.textContent = '-';
         return;
       }
 
@@ -1760,8 +1813,10 @@ const firebaseConfig = {
       previewCount.textContent = `${allTargets.length}건`;
       lastDateTime.textContent = allTargets[allTargets.length - 1].newDateTime;
       const creationUpdate = getCreationTimeUpdate();
+      const lotUpdate = getLotNumberUpdate();
       if (creationTimePreview) creationTimePreview.textContent = creationUpdate ? creationUpdate.newDateTime : '대상 없음';
-      setStatus(workStatus, 'ok', `미리보기 생성 완료: 변경 대상 ${allTargets.length}건${creationUpdate ? ' / Creation Time 변경 포함' : ''}`);
+      if (lotNumberPreview) lotNumberPreview.textContent = lotUpdate ? lotUpdate.after.replace(/^\s*lot\s*number\s*:\s*/i, '') : '대상 없음';
+      setStatus(workStatus, 'ok', `미리보기 생성 완료: 변경 대상 ${allTargets.length}건${creationUpdate ? ' / Creation Time 변경 포함' : ''}${lotUpdate ? ' / Lot Number 변경 포함' : ''}`);
       if (typeof saveProgramStateToFirebase === 'function') saveProgramStateToFirebase();
     }
 
@@ -1818,6 +1873,7 @@ const firebaseConfig = {
       const items = [];
       const seenKeys = new Set();
       creationTimeItem = null;
+      lotNumberItem = null;
 
       wb.eachSheet(worksheet => {
 
@@ -1861,6 +1917,45 @@ const firebaseConfig = {
               cellAddress: firstCreation.cell.address,
               originalText: firstCreation.text,
               parsed: firstCreation.parsed
+            };
+          }
+
+          // DataAnalysis 시트 상단 10행에서 Lot Number 값을 찾는다.
+          // 예: Lot Number: 20260428-00
+          const lotCells = [];
+          for (let rowNumber = 1; rowNumber <= maxSearchRow; rowNumber += 1) {
+            const row = worksheet.getRow(rowNumber);
+
+            row.eachCell({ includeEmpty: false }, cell => {
+              const text = cellText(cell);
+              const parsedLot = parseLotNumber(text);
+              if (!parsedLot) return;
+
+              lotCells.push({
+                cell,
+                rowNumber,
+                text,
+                parsed: parsedLot
+              });
+            });
+          }
+
+          if (lotCells.length > 0) {
+            lotCells.sort((a, b) => {
+              if (a.rowNumber !== b.rowNumber) return a.rowNumber - b.rowNumber;
+              return a.cell.col - b.cell.col;
+            });
+
+            const firstLot = lotCells[0];
+
+            lotNumberItem = {
+              sheetName: worksheet.name,
+              worksheet,
+              rowNumber: firstLot.rowNumber,
+              colNumber: firstLot.cell.col,
+              cellAddress: firstLot.cell.address,
+              originalText: firstLot.text,
+              parsed: firstLot.parsed
             };
           }
         }
@@ -1950,13 +2045,22 @@ const firebaseConfig = {
         creationCell.value = creationUpdate.after;
       }
 
+      const lotUpdate = getLotNumberUpdate();
+      if (lotUpdate) {
+        const lotCell = lotUpdate.item.worksheet.getCell(
+          lotUpdate.item.rowNumber,
+          lotUpdate.item.colNumber
+        );
+        lotCell.value = lotUpdate.after;
+      }
+
       const buffer = await workbook.xlsx.writeBuffer();
       changedBlob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
       changedFileName = makeOutputName(selectedFile.name);
       downloadBtn.disabled = false;
-      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}. 다운로드 버튼을 누르세요.`);
+      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}${lotUpdate ? ' / Lot Number 1건 수정됨' : ''}. 다운로드 버튼을 누르세요.`);
     }
 
     function downloadChangedFile() {
@@ -1981,12 +2085,14 @@ const firebaseConfig = {
       workbook = null;
       detectedItems = [];
       creationTimeItem = null;
+      lotNumberItem = null;
       changedBlob = null;
       changedFileName = '';
       downloadBtn.disabled = true;
       previewCount.textContent = '0건';
       lastDateTime.textContent = '-';
       if (creationTimePreview) creationTimePreview.textContent = '-';
+      if (lotNumberPreview) lotNumberPreview.textContent = '-';
 
       if (!selectedFile) {
         setStatus(fileStatus, '', '아직 파일이 선택되지 않았습니다.');
@@ -2014,7 +2120,8 @@ const firebaseConfig = {
         const typeCheck = checkFileType(selectedFile);
         const typeNotice = typeCheck.warn ? ` / ${typeCheck.warn}` : '';
         const creationNotice = creationTimeItem ? ` / Creation Time 발견: ${creationTimeItem.cellAddress}` : ' / Creation Time 없음';
-        setStatus(fileStatus, 'ok', `선택된 파일: ${selectedFile.name} / Test Date ${items.length}건 발견${duplicateNotice}${creationNotice}${typeNotice}`);
+        const lotNotice = lotNumberItem ? ` / Lot Number 발견: ${lotNumberItem.cellAddress}` : ' / Lot Number 없음';
+        setStatus(fileStatus, 'ok', `선택된 파일: ${selectedFile.name} / Test Date ${items.length}건 발견${duplicateNotice}${creationNotice}${lotNotice}${typeNotice}`);
         renderPreview();
       } catch (err) {
         console.error(err);
@@ -2039,6 +2146,7 @@ const firebaseConfig = {
       workbook = null;
       detectedItems = [];
       creationTimeItem = null;
+      lotNumberItem = null;
       changedBlob = null;
       changedFileName = '';
       document.getElementById('targetDate').value = '2026-04-29';
@@ -2056,6 +2164,7 @@ const firebaseConfig = {
       previewCount.textContent = '0건';
       lastDateTime.textContent = '-';
       if (creationTimePreview) creationTimePreview.textContent = '-';
+      if (lotNumberPreview) lotNumberPreview.textContent = '-';
       setStatus(fileStatus, '', '아직 파일이 선택되지 않았습니다.');
       setStatus(workStatus, '', '대기 중입니다.');
       downloadBtn.disabled = true;
