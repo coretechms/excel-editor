@@ -1187,6 +1187,7 @@ const firebaseConfig = {
         });
 
         bindFirebasePasswordSync();
+        bindFirebaseProgramStateSync();
         setFirebaseStatus("ok", "Firebase 초기화 완료");
         return true;
       } catch (error) {
@@ -1256,19 +1257,11 @@ const firebaseConfig = {
         return;
       }
 
-      const payload = {
-        targetDate: document.getElementById("targetDate")?.value || "",
-        startTime: document.getElementById("startTime")?.value || "",
-        intervalMin: document.getElementById("intervalMin")?.value || "",
-        intervalSec: document.getElementById("intervalSec")?.value || "",
-        saveOffsetMin: document.getElementById("saveOffsetMin")?.value || "",
-        saveOffsetSec: document.getElementById("saveOffsetSec")?.value || "",
-        dateFormat: document.getElementById("dateFormat")?.value || "",
-        noStart: document.getElementById("noStart")?.value || "",
-        noEnd: document.getElementById("noEnd")?.value || "",
-        lastDateTime: document.getElementById("lastDateTime")?.textContent || "",
-        updatedAt: new Date().toISOString()
-      };
+      const payload = typeof getProgramStatePayload === "function"
+        ? getProgramStatePayload()
+        : {
+          updatedAt: new Date().toISOString()
+        };
 
       ref.update(payload)
         .then(() => setFirebaseStatus("ok", "현재 설정 Firebase 저장 완료"))
@@ -1279,6 +1272,7 @@ const firebaseConfig = {
     }
 
     window.addEventListener("DOMContentLoaded", () => {
+      bindProgramInputAutoSave();
       initFirebase();
 
       const firebaseReconnectBtn = document.getElementById("firebaseReconnectBtn");
@@ -1296,6 +1290,129 @@ const firebaseConfig = {
       }
     });
 
+
+
+    // ==============================
+    // Firebase 실시간 동기화 보강
+    // ==============================
+    let firebaseProgramStateBound = false;
+    let suppressProgramStateSave = false;
+    let programStateSaveTimer = null;
+
+    function getSelectedModeValue() {
+      return document.querySelector('input[name="mode"]:checked')?.value || 'all';
+    }
+
+    function setSelectedModeValue(value) {
+      const radio = document.querySelector(`input[name="mode"][value="${value}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    function getProgramStatePayload() {
+      return {
+        targetDate: document.getElementById("targetDate")?.value || "",
+        startTime: document.getElementById("startTime")?.value || "",
+        intervalMin: document.getElementById("intervalMin")?.value || "",
+        intervalSec: document.getElementById("intervalSec")?.value || "",
+        saveOffsetMin: document.getElementById("saveOffsetMin")?.value || "",
+        saveOffsetSec: document.getElementById("saveOffsetSec")?.value || "",
+        dateFormat: document.getElementById("dateFormat")?.value || "",
+        mode: getSelectedModeValue(),
+        noStart: document.getElementById("noStart")?.value || "",
+        noEnd: document.getElementById("noEnd")?.value || "",
+        lastDateTime: document.getElementById("lastDateTime")?.textContent || "",
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    function applyProgramStateFromFirebase(data) {
+      if (!data) return;
+
+      suppressProgramStateSave = true;
+
+      const setValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (el !== null && el !== undefined && value !== undefined && value !== null && value !== "") {
+          el.value = value;
+        }
+      };
+
+      setValue("targetDate", data.targetDate);
+      setValue("startTime", data.startTime);
+      setValue("intervalMin", data.intervalMin);
+      setValue("intervalSec", data.intervalSec);
+      setValue("saveOffsetMin", data.saveOffsetMin);
+      setValue("saveOffsetSec", data.saveOffsetSec);
+      setValue("dateFormat", data.dateFormat);
+      setValue("noStart", data.noStart);
+      setValue("noEnd", data.noEnd);
+
+      if (data.mode) setSelectedModeValue(data.mode);
+
+      if (typeof updateDateFormatLabels === "function") {
+        updateDateFormatLabels();
+      }
+
+      suppressProgramStateSave = false;
+
+      if (typeof setFirebaseStatus === "function") {
+        setFirebaseStatus("ok", "Firebase 실시간 동기화 적용됨");
+      }
+    }
+
+    function bindFirebaseProgramStateSync() {
+      const ref = typeof firebaseRef === "function" ? firebaseRef("programState") : null;
+      if (!ref || firebaseProgramStateBound) return;
+
+      firebaseProgramStateBound = true;
+
+      ref.on("value", snapshot => {
+        const data = snapshot.val();
+        if (!data) return;
+        applyProgramStateFromFirebase(data);
+      }, error => {
+        console.error(error);
+        if (typeof setFirebaseStatus === "function") {
+          setFirebaseStatus("warn", "Firebase 실시간 읽기 실패: " + error.message);
+        }
+      });
+    }
+
+    function saveProgramStateToFirebaseDebounced() {
+      if (suppressProgramStateSave) return;
+
+      clearTimeout(programStateSaveTimer);
+      programStateSaveTimer = setTimeout(() => {
+        if (typeof saveProgramStateToFirebase === "function") {
+          saveProgramStateToFirebase();
+        }
+      }, 500);
+    }
+
+    function bindProgramInputAutoSave() {
+      const ids = [
+        "targetDate",
+        "startTime",
+        "intervalMin",
+        "intervalSec",
+        "saveOffsetMin",
+        "saveOffsetSec",
+        "dateFormat",
+        "noStart",
+        "noEnd"
+      ];
+
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener("input", saveProgramStateToFirebaseDebounced);
+        el.addEventListener("change", saveProgramStateToFirebaseDebounced);
+      });
+
+      document.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.addEventListener("change", saveProgramStateToFirebaseDebounced);
+      });
+    }
 
     function setStatus(el, type, text) {
       el.className = type ? `status ${type}` : 'status';
@@ -1875,6 +1992,7 @@ const firebaseConfig = {
       }
 
       applyDateTimeFromSelectedFileName(selectedFile.name);
+      saveProgramStateToFirebaseDebounced();
 
       setStatus(fileStatus, '', `파일 분석 중: ${selectedFile.name}`);
       setStatus(workStatus, '', '엑셀 파일을 읽는 중입니다.');
