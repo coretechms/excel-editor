@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>엑셀 Test Date 변경 도구</title>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+  <style>
+    :root {
+      --bg: #f3f5f8;
+      --card: #ffffff;
+      --line: #d8dee8;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --danger: #dc2626;
+      --ok: #059669;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      font-size: 14px;
+    }
+
+    .page {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px 14px 40px;
+    }
+
+    .title-box {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    .desc {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+    }
+
+    .card.full { grid-column: 1 / -1; }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+      font-weight: 700;
+      font-size: 17px;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+
+    .preview-title-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .last-date-time {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .form-row { margin-bottom: 13px; }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    input[type="file"],
+    input[type="text"],
+    input[type="date"],
+    input[type="time"],
+    input[type="number"],
+    select {
+      width: 100%;
+      height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 11px;
+      background: #fff;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .radio-group {
+      display: grid;
+      gap: 8px;
+    }
+
+    .radio-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fafafa;
+      cursor: pointer;
+    }
+
+    .radio-line input { margin: 0; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .interval-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    button {
+      height: 42px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 0 16px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+
+    .btn-sub {
+      background: #fff;
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    .btn-sub:hover:not(:disabled) { background: #f8fafc; }
+
+    .btn-danger {
+      background: #fff;
+      color: var(--danger);
+      border-color: #fecaca;
+    }
+
+    .preview-box {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 10px;
+      text-align: left;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 700;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+
+    .empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 11px 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .status.ok {
+      color: var(--ok);
+      background: #ecfdf5;
+      border-color: #bbf7d0;
+    }
+
+    .status.warn {
+      color: var(--danger);
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    .help {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 5px;
+    }
+
+
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: var(--bg);
+    }
+
+    .login-box {
+      width: 100%;
+      max-width: 380px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 22px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.10);
+    }
+
+    .login-title {
+      margin: 0 0 8px;
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .login-desc {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 13px;
+    }
+
+    .login-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .login-actions button {
+      flex: 1;
+    }
+
+    .login-error {
+      min-height: 20px;
+      margin-top: 10px;
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+
+    .admin-gate-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: var(--bg);
+    }
+
+    .admin-gate-box {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 22px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.10);
+    }
+
+    .admin-gate-title {
+      margin: 0 0 8px;
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .admin-gate-desc {
+      margin: 0 0 16px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 13px;
+    }
+
+    .admin-gate-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .admin-gate-actions button {
+      flex: 1;
+    }
+
+    .top-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+
+    .admin-panel {
+      display: none;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+    }
+
+    .admin-panel.active {
+      display: block;
+    }
+
+    .admin-panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .admin-panel-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .admin-panel-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .admin-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 6px;
+    }
+
+
+    .admin-mode-login-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 9999;
+    }
+
+    .admin-mode-login-overlay.active {
+      display: flex;
+    }
+
+    .admin-mode-login-box {
+      width: 100%;
+      max-width: 360px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.22);
+    }
+
+    .admin-mode-login-title {
+      margin: 0 0 8px;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .admin-mode-login-desc {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .admin-mode-login-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .admin-mode-login-actions button {
+      flex: 1;
+    }
+
+    .password-section-title {
+      font-weight: 800;
+      margin: 4px 0 10px;
+      color: var(--text);
+    }
+
+    .section-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 14px 0;
+    }
+
+
+    .firebase-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .firebase-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: #9ca3af;
+      display: inline-block;
+    }
+
+    .firebase-dot.ok {
+      background: var(--ok);
+    }
+
+    .firebase-dot.warn {
+      background: var(--danger);
+    }
+
+    @media (max-width: 760px) {
+      .page { padding: 14px 10px 28px; }
+
+      .grid,
+      .two-col,
+      .interval-grid,
+      .admin-panel-grid {
+        grid-template-columns: 1fr;
+      }
+
+      h1 { font-size: 20px; }
+
+      .card { padding: 14px; }
+
+      .button-row button { flex: 1 1 140px; }
+
+      .preview-box { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h2 class="login-title">기본화면 진입 비밀번호</h2>
+      <p class="login-desc">엑셀 Test Date 변경 도구 기본화면에 진입하려면 비밀번호를 입력하세요.</p>
+
+      <div class="form-row">
+        <label for="adminPasswordInput">비밀번호</label>
+        <input id="adminPasswordInput" type="password" autocomplete="current-password" placeholder="기본화면 진입 비밀번호 입력" />
+      </div>
+
+      <div class="login-actions">
+        <button class="btn-primary" type="button" id="adminLoginBtn">진입</button>
+        <button class="btn-sub" type="button" id="adminClearBtn">지우기</button>
+      </div>
+
+      <div class="login-error" id="adminLoginError"></div>
+    </div>
+  </section>
+<main class="page hidden" id="mainApp">
+    <div class="top-actions">
+      <button class="btn-primary" type="button" id="adminModeBtn">관리자 모드</button>
+      <button class="btn-sub" type="button" id="adminLogoutBtn">로그아웃</button>
+    </div>
+
+    <section class="admin-panel" id="adminPanel">
+      <div class="admin-panel-title">
+        <span>프로그램 관리</span>
+        <button class="btn-sub" type="button" id="closeAdminPanelBtn">닫기</button>
+      </div>
+
+      <div class="admin-panel-grid">
+        <div class="card" style="box-shadow:none;">
+          <div class="card-title">비밀번호 관리</div>
+
+          <div class="password-section-title">1. 기본화면 진입 비밀번호 변경</div>
+          <div class="form-row">
+            <label for="currentEntryPw">현재 기본화면 비밀번호</label>
+            <input id="currentEntryPw" type="password" placeholder="현재 기본화면 비밀번호" />
+          </div>
+
+          <div class="form-row">
+            <label for="newEntryPw">새 기본화면 비밀번호</label>
+            <input id="newEntryPw" type="password" placeholder="새 기본화면 비밀번호" />
+          </div>
+
+          <div class="form-row">
+            <label for="newEntryPw2">새 기본화면 비밀번호 확인</label>
+            <input id="newEntryPw2" type="password" placeholder="새 기본화면 비밀번호 확인" />
+          </div>
+
+          <div class="admin-panel-actions">
+            <button class="btn-primary" type="button" id="changeEntryPwBtn">기본화면 비밀번호 변경</button>
+            <button class="btn-sub" type="button" id="resetEntryPwBtn">기본값 1234 복구</button>
+          </div>
+
+          <div class="section-divider"></div>
+
+          <div class="password-section-title">2. 관리자 모드 비밀번호 변경</div>
+          <div class="form-row">
+            <label for="currentModePw">현재 관리자 모드 비밀번호</label>
+            <input id="currentModePw" type="password" placeholder="현재 관리자 모드 비밀번호" />
+          </div>
+
+          <div class="form-row">
+            <label for="newModePw">새 관리자 모드 비밀번호</label>
+            <input id="newModePw" type="password" placeholder="새 관리자 모드 비밀번호" />
+          </div>
+
+          <div class="form-row">
+            <label for="newModePw2">새 관리자 모드 비밀번호 확인</label>
+            <input id="newModePw2" type="password" placeholder="새 관리자 모드 비밀번호 확인" />
+          </div>
+
+          <div class="admin-panel-actions">
+            <button class="btn-primary" type="button" id="changeModePwBtn">관리자 모드 비밀번호 변경</button>
+            <button class="btn-sub" type="button" id="resetModePwBtn">기본값 4321 복구</button>
+          </div>
+
+
+          <div class="section-divider"></div>
+
+          <div class="password-section-title">3. Firebase 연결</div>
+          <div class="firebase-status-row">
+            <span class="firebase-dot" id="firebaseDot"></span>
+            <span id="firebaseStatusText">Firebase 연결 대기 중</span>
+          </div>
+          <div class="admin-panel-actions">
+            <button class="btn-sub" type="button" id="firebaseReconnectBtn">Firebase 재연결</button>
+            <button class="btn-sub" type="button" id="firebaseSaveNowBtn">현재 설정 Firebase 저장</button>
+          </div>
+          <div class="admin-note">
+            코드 상단의 <strong>firebaseConfig</strong> 값을 실제 Firebase 프로젝트 설정값으로 교체해야 연결됩니다.
+          </div>
+
+          <div class="admin-note" id="adminPwStatus">기본화면 비밀번호 기본값은 1234, 관리자 모드 비밀번호 기본값은 4321입니다.</div>
+        </div>
+
+        <div class="card" style="box-shadow:none;">
+          <div class="card-title">프로그램 관리</div>
+
+          <div class="admin-panel-actions">
+            <button class="btn-sub" type="button" id="clearSessionBtn">로그인 세션 초기화</button>
+            <button class="btn-danger" type="button" id="clearProgramBtn">화면 입력값 초기화</button>
+          </div>
+
+          <div class="admin-note">
+            기본화면 진입과 관리자 모드 진입은 서로 다른 비밀번호로 관리됩니다.
+          </div>
+        </div>
+      </div>
+    </section>
+<section class="title-box">
+      <h1>엑셀 Test Date 변경 도구</h1>
+      <p class="desc">
+        엑셀 파일을 선택한 뒤, 각 폼 상단의 <strong>Test Date: YYYY/MM/DD HH:MM</strong> 값을 원하는 날짜와 시간으로 변경하고 수정본을 다운로드합니다.
+      </p>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <div class="card-title">
+          1. 엑셀 파일 선택
+          <span class="badge">.xlsx / .xlsm / .xls</span>
+        </div>
+
+        <div class="form-row">
+          <label for="excelFile">엑셀 파일</label>
+          <input id="excelFile" type="file" accept=".xlsx,.xlsm,.xls" />
+          <div class="help">브라우저에서 직접 읽고 수정합니다. 원본 파일은 변경하지 않습니다. 권장 형식은 .xlsx 입니다.</div>
+        </div>
+
+        <div class="status" id="fileStatus">아직 파일이 선택되지 않았습니다.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          2. 날짜 / 시간 입력
+          <span class="badge">변경 기준</span>
+        </div>
+
+        <div class="two-col">
+          <div class="form-row">
+            <label for="targetDate">변경 날짜</label>
+            <input id="targetDate" type="date" value="2026-04-29" />
+          </div>
+
+          <div class="form-row">
+            <label for="startTime">시작 시간</label>
+            <input id="startTime" type="time" step="1" value="08:30:00" />
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="form-row">
+            <label>증가 간격</label>
+            <div class="interval-grid">
+              <div>
+                <input id="intervalMin" type="number" min="0" step="1" value="0" inputmode="numeric" />
+                <div class="help">분</div>
+              </div>
+              <div>
+                <input id="intervalSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" />
+                <div class="help">초</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label for="dateFormat">표시 형식</label>
+            <select id="dateFormat">
+              <option value="slash" selected>2026/04/29 08:30</option>
+              <option value="dash">2026-04-29 08:30</option>
+            </select>
+          </div>
+        </div>
+
+
+
+        <div class="form-row">
+          <label>저장시간</label>
+          <div class="interval-grid">
+            <div>
+              <input id="saveOffsetMin" type="number" min="0" step="1" value="2" inputmode="numeric" />
+              <div class="help">최종항목 시간보다 늦게 적용할 분</div>
+            </div>
+            <div>
+              <input id="saveOffsetSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" />
+              <div class="help">초</div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          3. 변경 방식
+          <span class="badge">대상 선택</span>
+        </div>
+
+        <div class="radio-group">
+          <label class="radio-line">
+            <input type="radio" name="mode" value="all" checked />
+            전체 Test Date 변경
+          </label>
+
+          <label class="radio-line">
+            <input type="radio" name="mode" value="dateOnly" />
+            날짜만 변경 / 시간은 기존값 유지
+          </label>
+
+          <label class="radio-line">
+            <input type="radio" name="mode" value="timeOnly" />
+            시간만 변경 / 날짜는 기존값 유지
+          </label>
+
+          <label class="radio-line">
+            <input type="radio" name="mode" value="range" />
+            특정 NO 범위만 변경
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          4. NO 범위 설정
+          <span class="badge">선택 사항</span>
+        </div>
+
+        <div class="two-col">
+          <div class="form-row">
+            <label for="noStart">NO 시작</label>
+            <input id="noStart" type="text" value="000002" inputmode="numeric" />
+          </div>
+
+          <div class="form-row">
+            <label for="noEnd">NO 끝</label>
+            <input id="noEnd" type="text" value="000305" inputmode="numeric" />
+          </div>
+        </div>
+
+        <div class="help">
+          “특정 NO 범위만 변경”을 선택했을 때만 적용됩니다. 예: 000002 ~ 000305
+        </div>
+      </div>
+
+      <div class="card full">
+        <div class="card-title">
+          <span>5. 미리보기</span>
+          <div class="preview-title-right">
+            <span>* 최종항목 날짜/시간 : <span class="last-date-time" id="lastDateTime">-</span></span>
+            <span>* Creation Time 변경값 : <span class="last-date-time" id="creationTimePreview">-</span></span>
+            <span class="badge" id="previewCount">0건</span>
+          </div>
+        </div>
+
+        <div class="preview-box" id="previewBox">
+          <div class="empty">엑셀 파일을 선택하면 Test Date 항목을 자동 분석합니다.</div>
+        </div>
+        <div class="button-row">
+          <button class="btn-sub" type="button" id="previewBtn">미리보기 생성</button>
+          <button class="btn-primary" type="button" id="convertBtn">변경 실행</button>
+          <button class="btn-sub" type="button" id="downloadBtn" disabled>수정된 엑셀 다운로드</button>
+          <button class="btn-danger" type="button" id="resetBtn">초기화</button>
+        </div>
+
+        <div class="status" id="workStatus">대기 중입니다.</div>
+      </div>
+    </section>
+  </main>
+
+
+  <section class="admin-mode-login-overlay" id="adminModeLoginOverlay">
+    <div class="admin-mode-login-box">
+      <h2 class="admin-mode-login-title">관리자 모드 비밀번호</h2>
+      <p class="admin-mode-login-desc">프로그램 관리 기능을 사용하려면 관리자 모드 비밀번호를 입력하세요.</p>
+
+      <div class="form-row">
+        <label for="adminModePasswordInput">관리자 모드 비밀번호</label>
+        <input id="adminModePasswordInput" type="password" placeholder="관리자 모드 비밀번호 입력" />
+      </div>
+
+      <div class="admin-mode-login-actions">
+        <button class="btn-primary" type="button" id="adminModeLoginBtn">관리자 모드 진입</button>
+        <button class="btn-sub" type="button" id="adminModeCancelBtn">취소</button>
+      </div>
+
+      <div class="login-error" id="adminModeLoginError"></div>
+    </div>
+  </section>
+
+
+  <script>
+    const excelFile = document.getElementById('excelFile');
+    const fileStatus = document.getElementById('fileStatus');
+    const workStatus = document.getElementById('workStatus');
+    const previewBox = document.getElementById('previewBox');
+    const previewCount = document.getElementById('previewCount');
+    const lastDateTime = document.getElementById('lastDateTime');
+    const creationTimePreview = document.getElementById('creationTimePreview');
+    const previewBtn = document.getElementById('previewBtn');
+    const convertBtn = document.getElementById('convertBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+
+    const ENTRY_PASSWORD_DEFAULT = '1234';
+    const ADMIN_MODE_PASSWORD_DEFAULT = '4321';
+    const ENTRY_PASSWORD_KEY = 'excelTestDateEntryPassword';
+    const ADMIN_MODE_PASSWORD_KEY = 'excelTestDateAdminModePassword';
+    const ENTRY_SESSION_KEY = 'excelTestDateEntryAuthed';
+    const ADMIN_MODE_SESSION_KEY = 'excelTestDateAdminModeAuthed';
+
+    const loginScreen = document.getElementById('loginScreen');
+    const mainApp = document.getElementById('mainApp');
+    const adminPasswordInput = document.getElementById('adminPasswordInput');
+    const adminLoginBtn = document.getElementById('adminLoginBtn');
+    const adminClearBtn = document.getElementById('adminClearBtn');
+    const adminLogoutBtn = document.getElementById('adminLogoutBtn');
+    const adminLoginError = document.getElementById('adminLoginError');
+
+    const adminModeBtn = document.getElementById('adminModeBtn');
+    const adminPanel = document.getElementById('adminPanel');
+    const closeAdminPanelBtn = document.getElementById('closeAdminPanelBtn');
+
+    const adminModeLoginOverlay = document.getElementById('adminModeLoginOverlay');
+    const adminModePasswordInput = document.getElementById('adminModePasswordInput');
+    const adminModeLoginBtn = document.getElementById('adminModeLoginBtn');
+    const adminModeCancelBtn = document.getElementById('adminModeCancelBtn');
+    const adminModeLoginError = document.getElementById('adminModeLoginError');
+
+    const currentEntryPw = document.getElementById('currentEntryPw');
+    const newEntryPw = document.getElementById('newEntryPw');
+    const newEntryPw2 = document.getElementById('newEntryPw2');
+    const changeEntryPwBtn = document.getElementById('changeEntryPwBtn');
+    const resetEntryPwBtn = document.getElementById('resetEntryPwBtn');
+
+    const currentModePw = document.getElementById('currentModePw');
+    const newModePw = document.getElementById('newModePw');
+    const newModePw2 = document.getElementById('newModePw2');
+    const changeModePwBtn = document.getElementById('changeModePwBtn');
+    const resetModePwBtn = document.getElementById('resetModePwBtn');
+
+    const clearSessionBtn = document.getElementById('clearSessionBtn');
+    const clearProgramBtn = document.getElementById('clearProgramBtn');
+    const adminPwStatus = document.getElementById('adminPwStatus');
+
+    function getEntryPassword() {
+      return localStorage.getItem(ENTRY_PASSWORD_KEY) || ENTRY_PASSWORD_DEFAULT;
+    }
+
+    function setEntryPassword(value) {
+      localStorage.setItem(ENTRY_PASSWORD_KEY, value);
+    }
+
+    function getAdminModePassword() {
+      return localStorage.getItem(ADMIN_MODE_PASSWORD_KEY) || ADMIN_MODE_PASSWORD_DEFAULT;
+    }
+
+    function setAdminModePassword(value) {
+      localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, value);
+    }
+
+    function showLogin() {
+      loginScreen.classList.remove('hidden');
+      mainApp.classList.add('hidden');
+      adminPanel.classList.remove('active');
+      adminModeLoginOverlay.classList.remove('active');
+      adminPasswordInput.value = '';
+      adminLoginError.textContent = '';
+      setTimeout(() => adminPasswordInput.focus(), 50);
+    }
+
+    function showApp() {
+      loginScreen.classList.add('hidden');
+      mainApp.classList.remove('hidden');
+      adminPanel.classList.remove('active');
+      adminModeLoginOverlay.classList.remove('active');
+    }
+
+    function checkEntryPassword() {
+      const input = adminPasswordInput.value.trim();
+
+      if (input === getEntryPassword()) {
+        sessionStorage.setItem(ENTRY_SESSION_KEY, '1');
+        showApp();
+        return;
+      }
+
+      adminLoginError.textContent = '기본화면 진입 비밀번호가 맞지 않습니다.';
+      adminPasswordInput.select();
+    }
+
+    function logoutAdmin() {
+      sessionStorage.removeItem(ENTRY_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_MODE_SESSION_KEY);
+      showLogin();
+    }
+
+    function openAdminModePasswordBox() {
+      adminModeLoginOverlay.classList.add('active');
+      adminModePasswordInput.value = '';
+      adminModeLoginError.textContent = '';
+      setTimeout(() => adminModePasswordInput.focus(), 50);
+    }
+
+    function closeAdminModePasswordBox() {
+      adminModeLoginOverlay.classList.remove('active');
+      adminModePasswordInput.value = '';
+      adminModeLoginError.textContent = '';
+    }
+
+    function checkAdminModePassword() {
+      const input = adminModePasswordInput.value.trim();
+
+      if (input === getAdminModePassword()) {
+        sessionStorage.setItem(ADMIN_MODE_SESSION_KEY, '1');
+        closeAdminModePasswordBox();
+        adminPanel.classList.add('active');
+        return;
+      }
+
+      adminModeLoginError.textContent = '관리자 모드 비밀번호가 맞지 않습니다.';
+      adminModePasswordInput.select();
+    }
+
+    function setAdminStatus(text, ok = true) {
+      adminPwStatus.textContent = text;
+      adminPwStatus.style.color = ok ? 'var(--ok)' : 'var(--danger)';
+    }
+
+    function changePassword({ currentInput, nextInput, nextInput2, getPassword, setPassword, label }) {
+      const current = currentInput.value.trim();
+      const next = nextInput.value.trim();
+      const next2 = nextInput2.value.trim();
+
+      if (current !== getPassword()) {
+        setAdminStatus(`${label} 현재 비밀번호가 맞지 않습니다.`, false);
+        currentInput.select();
+        return;
+      }
+
+      if (!next || next.length < 4) {
+        setAdminStatus(`${label} 새 비밀번호는 4자리 이상으로 입력하세요.`, false);
+        nextInput.focus();
+        return;
+      }
+
+      if (next !== next2) {
+        setAdminStatus(`${label} 새 비밀번호 확인이 일치하지 않습니다.`, false);
+        nextInput2.select();
+        return;
+      }
+
+      setPassword(next);
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase();
+      currentInput.value = '';
+      nextInput.value = '';
+      nextInput2.value = '';
+      setAdminStatus(`${label} 비밀번호가 변경되었습니다.`);
+    }
+
+    adminLoginBtn.addEventListener('click', checkEntryPassword);
+
+    adminClearBtn.addEventListener('click', () => {
+      adminPasswordInput.value = '';
+      adminLoginError.textContent = '';
+      adminPasswordInput.focus();
+    });
+
+    adminPasswordInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        checkEntryPassword();
+      }
+    });
+
+    adminLogoutBtn.addEventListener('click', logoutAdmin);
+
+    adminModeBtn.addEventListener('click', () => {
+      if (sessionStorage.getItem(ADMIN_MODE_SESSION_KEY) === '1') {
+        adminPanel.classList.toggle('active');
+      } else {
+        openAdminModePasswordBox();
+      }
+    });
+
+    adminModeLoginBtn.addEventListener('click', checkAdminModePassword);
+
+    adminModeCancelBtn.addEventListener('click', closeAdminModePasswordBox);
+
+    adminModePasswordInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        checkAdminModePassword();
+      }
+      if (event.key === 'Escape') {
+        closeAdminModePasswordBox();
+      }
+    });
+
+    closeAdminPanelBtn.addEventListener('click', () => {
+      adminPanel.classList.remove('active');
+      // 관리자 모드 닫기 시 관리자 모드 인증 세션을 삭제한다.
+      // 다시 관리자 모드 버튼을 누르면 비밀번호를 다시 입력해야 한다.
+      sessionStorage.removeItem(ADMIN_MODE_SESSION_KEY);
+      if (adminModePasswordInput) adminModePasswordInput.value = '';
+      if (adminModeLoginError) adminModeLoginError.textContent = '';
+    });
+
+    changeEntryPwBtn.addEventListener('click', () => {
+      changePassword({
+        currentInput: currentEntryPw,
+        nextInput: newEntryPw,
+        nextInput2: newEntryPw2,
+        getPassword: getEntryPassword,
+        setPassword: setEntryPassword,
+        label: '기본화면 진입'
+      });
+    });
+
+    resetEntryPwBtn.addEventListener('click', () => {
+      if (!confirm('기본화면 진입 비밀번호를 기본값 1234로 복구할까요?')) return;
+      localStorage.removeItem(ENTRY_PASSWORD_KEY);
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase();
+      currentEntryPw.value = '';
+      newEntryPw.value = '';
+      newEntryPw2.value = '';
+      setAdminStatus('기본화면 진입 비밀번호가 1234로 복구되었습니다.');
+    });
+
+    changeModePwBtn.addEventListener('click', () => {
+      changePassword({
+        currentInput: currentModePw,
+        nextInput: newModePw,
+        nextInput2: newModePw2,
+        getPassword: getAdminModePassword,
+        setPassword: setAdminModePassword,
+        label: '관리자 모드'
+      });
+    });
+
+    resetModePwBtn.addEventListener('click', () => {
+      if (!confirm('관리자 모드 비밀번호를 기본값 4321로 복구할까요?')) return;
+      localStorage.removeItem(ADMIN_MODE_PASSWORD_KEY);
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase();
+      currentModePw.value = '';
+      newModePw.value = '';
+      newModePw2.value = '';
+      sessionStorage.removeItem(ADMIN_MODE_SESSION_KEY);
+      adminPanel.classList.remove('active');
+      setAdminStatus('관리자 모드 비밀번호가 4321로 복구되었습니다. 관리자 모드는 다시 로그인해야 합니다.');
+    });
+
+    clearSessionBtn.addEventListener('click', () => {
+      sessionStorage.removeItem(ENTRY_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_MODE_SESSION_KEY);
+      setAdminStatus('기본화면/관리자 모드 로그인 세션이 초기화되었습니다. 새로고침하면 비밀번호를 다시 입력해야 합니다.');
+    });
+
+    clearProgramBtn.addEventListener('click', () => {
+      if (!confirm('현재 화면 입력값과 선택된 파일 정보를 초기화할까요?')) return;
+      resetBtn.click();
+      adminPanel.classList.add('active');
+      setAdminStatus('화면 입력값이 초기화되었습니다.');
+    });
+
+    if (sessionStorage.getItem(ENTRY_SESSION_KEY) === '1') {
+      showApp();
+    } else {
+      showLogin();
+    }
+
+let selectedFile = null;
+    let workbook = null;
+    let detectedItems = [];
+    let creationTimeItem = null;
+    let changedBlob = null;
+    let changedFileName = '';
+
+    // ==============================
+    // Firebase 연결 설정
+    // ==============================
+    // 아래 값을 Firebase 콘솔의 웹 앱 설정값으로 교체하세요.
+    // databaseURL은 Realtime Database URL을 반드시 입력해야 합니다.
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const FIREBASE_ROOT_PATH = "excelTestDateEditor";
+    let firebaseApp = null;
+    let firebaseDb = null;
+    let firebaseConnected = false;
+    let firebaseReady = false;
+    let suppressFirebasePasswordSave = false;
+
+    function isFirebaseConfigReady() {
+      return firebaseConfig.apiKey &&
+        !String(firebaseConfig.apiKey).includes("YOUR_") &&
+        firebaseConfig.databaseURL &&
+        !String(firebaseConfig.databaseURL).includes("YOUR_");
+    }
+
+    function setFirebaseStatus(type, text) {
+      const dot = document.getElementById("firebaseDot");
+      const label = document.getElementById("firebaseStatusText");
+
+      if (!dot || !label) return;
+
+      dot.classList.remove("ok", "warn");
+
+      if (type === "ok") dot.classList.add("ok");
+      if (type === "warn") dot.classList.add("warn");
+
+      label.textContent = text;
+    }
+
+    function initFirebase() {
+      if (!window.firebase) {
+        firebaseReady = false;
+        setFirebaseStatus("warn", "Firebase SDK를 불러오지 못했습니다. 인터넷 연결을 확인하세요.");
+        return false;
+      }
+
+      if (!isFirebaseConfigReady()) {
+        firebaseReady = false;
+        setFirebaseStatus("warn", "Firebase 설정값이 입력되지 않았습니다.");
+        return false;
+      }
+
+      try {
+        firebaseApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+        firebaseDb = firebase.database();
+        firebaseReady = true;
+
+        const connectedRef = firebaseDb.ref(".info/connected");
+        connectedRef.on("value", snapshot => {
+          firebaseConnected = snapshot.val() === true;
+          setFirebaseStatus(
+            firebaseConnected ? "ok" : "warn",
+            firebaseConnected ? "Firebase 실시간 연결됨" : "Firebase 연결 끊김"
+          );
+        });
+
+        bindFirebasePasswordSync();
+        setFirebaseStatus("ok", "Firebase 초기화 완료");
+        return true;
+      } catch (error) {
+        firebaseReady = false;
+        console.error(error);
+        setFirebaseStatus("warn", "Firebase 초기화 실패: " + error.message);
+        return false;
+      }
+    }
+
+    function firebaseRef(path) {
+      if (!firebaseReady || !firebaseDb) return null;
+      return firebaseDb.ref(`${FIREBASE_ROOT_PATH}/${path}`);
+    }
+
+    function savePasswordsToFirebase() {
+      const ref = firebaseRef("passwords");
+      if (!ref) {
+        setFirebaseStatus("warn", "Firebase 저장 실패: 연결 설정을 확인하세요.");
+        return;
+      }
+
+      const payload = {
+        entryPassword: typeof getEntryPassword === "function" ? getEntryPassword() : (localStorage.getItem("excelTestDateEntryPassword") || "1234"),
+        adminModePassword: typeof getAdminModePassword === "function" ? getAdminModePassword() : (localStorage.getItem("excelTestDateAdminModePassword") || "4321"),
+        updatedAt: new Date().toISOString()
+      };
+
+      ref.update(payload)
+        .then(() => setFirebaseStatus("ok", "Firebase 저장 완료"))
+        .catch(error => {
+          console.error(error);
+          setFirebaseStatus("warn", "Firebase 저장 실패: " + error.message);
+        });
+    }
+
+    function bindFirebasePasswordSync() {
+      const ref = firebaseRef("passwords");
+      if (!ref) return;
+
+      ref.on("value", snapshot => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        suppressFirebasePasswordSave = true;
+
+        if (data.entryPassword) {
+          localStorage.setItem("excelTestDateEntryPassword", String(data.entryPassword));
+        }
+
+        if (data.adminModePassword) {
+          localStorage.setItem("excelTestDateAdminModePassword", String(data.adminModePassword));
+        }
+
+        suppressFirebasePasswordSave = false;
+        setFirebaseStatus("ok", "Firebase 비밀번호 동기화 완료");
+      }, error => {
+        console.error(error);
+        setFirebaseStatus("warn", "Firebase 읽기 실패: " + error.message);
+      });
+    }
+
+    function saveProgramStateToFirebase() {
+      const ref = firebaseRef("programState");
+      if (!ref) {
+        setFirebaseStatus("warn", "Firebase 저장 실패: 연결 설정을 확인하세요.");
+        return;
+      }
+
+      const payload = {
+        targetDate: document.getElementById("targetDate")?.value || "",
+        startTime: document.getElementById("startTime")?.value || "",
+        intervalMin: document.getElementById("intervalMin")?.value || "",
+        intervalSec: document.getElementById("intervalSec")?.value || "",
+        saveOffsetMin: document.getElementById("saveOffsetMin")?.value || "",
+        saveOffsetSec: document.getElementById("saveOffsetSec")?.value || "",
+        dateFormat: document.getElementById("dateFormat")?.value || "",
+        noStart: document.getElementById("noStart")?.value || "",
+        noEnd: document.getElementById("noEnd")?.value || "",
+        lastDateTime: document.getElementById("lastDateTime")?.textContent || "",
+        updatedAt: new Date().toISOString()
+      };
+
+      ref.update(payload)
+        .then(() => setFirebaseStatus("ok", "현재 설정 Firebase 저장 완료"))
+        .catch(error => {
+          console.error(error);
+          setFirebaseStatus("warn", "현재 설정 저장 실패: " + error.message);
+        });
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      initFirebase();
+
+      const firebaseReconnectBtn = document.getElementById("firebaseReconnectBtn");
+      const firebaseSaveNowBtn = document.getElementById("firebaseSaveNowBtn");
+
+      if (firebaseReconnectBtn) {
+        firebaseReconnectBtn.addEventListener("click", initFirebase);
+      }
+
+      if (firebaseSaveNowBtn) {
+        firebaseSaveNowBtn.addEventListener("click", () => {
+          savePasswordsToFirebase();
+          saveProgramStateToFirebase();
+        });
+      }
+    });
+
+
+    function setStatus(el, type, text) {
+      el.className = type ? `status ${type}` : 'status';
+      el.textContent = text;
+    }
+
+    function getSettings() {
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      return {
+        date: document.getElementById('targetDate').value,
+        time: document.getElementById('startTime').value,
+        intervalMin: Math.max(0, Number(document.getElementById('intervalMin').value) || 0),
+        intervalSec: Math.min(59, Math.max(0, Number(document.getElementById('intervalSec').value) || 0)),
+        saveOffsetMin: Math.max(0, Number(document.getElementById('saveOffsetMin')?.value) || 0),
+        saveOffsetSec: Math.min(59, Math.max(0, Number(document.getElementById('saveOffsetSec')?.value) || 0)),
+        format: document.getElementById('dateFormat').value,
+        mode,
+        noStart: document.getElementById('noStart').value.trim(),
+        noEnd: document.getElementById('noEnd').value.trim()
+      };
+    }
+
+    function cellText(cell) {
+      if (!cell || cell.value === null || cell.value === undefined) return '';
+      const v = cell.value;
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+      if (v instanceof Date) return v.toISOString();
+      if (v.richText) return v.richText.map(x => x.text || '').join('');
+      if (v.text) return String(v.text);
+      if (v.result !== undefined) return String(v.result);
+      if (v.formula) return String(v.result ?? '');
+      return String(v);
+    }
+
+    function findNoInRow(row) {
+      let found = '';
+      row.eachCell({ includeEmpty: false }, cell => {
+        if (found) return;
+        const txt = cellText(cell).replace(/\s+/g, ' ').trim();
+        const m = txt.match(/NO\.?\s*0*(\d+)/i);
+        if (m) found = m[1].padStart(6, '0');
+      });
+      return found;
+    }
+
+    function parseTestDate(text) {
+      const m = String(text).match(/Test\s*Date\s*:\s*(\d{4}[\/-]\d{1,2}[\/-]\d{1,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/i);
+      if (!m) return null;
+      return { date: m[1], time: m[2], full: m[0] };
+    }
+
+
+    function parseCreationTime(text) {
+      const m = String(text).match(/(creation\s*time\s*:\s*)(\d{4}[\/-]\d{1,2}[\/-]\d{1,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/i);
+      if (!m) return null;
+      return {
+        prefix: m[1],
+        date: m[2],
+        time: m[3],
+        full: m[0]
+      };
+    }
+
+    function parseDateTimeTextToDate(dateTimeText) {
+      const m = String(dateTimeText || '').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (!m) return null;
+      return new Date(
+        Number(m[1]),
+        Number(m[2]) - 1,
+        Number(m[3]),
+        Number(m[4]),
+        Number(m[5]),
+        Number(m[6] || 0)
+      );
+    }
+
+    function buildCreationTimeTextFromLastDateTime(lastDateTimeText, format, saveOffsetMin = 2, saveOffsetSec = 0) {
+      const d = parseDateTimeTextToDate(lastDateTimeText);
+      if (!d) return '';
+      // 저장시간은 사용자가 입력한 분+초 값을 기준으로 최종 Test Date 시간에 더한다.
+      d.setSeconds(d.getSeconds() + (saveOffsetMin * 60) + saveOffsetSec);
+      // Creation Time도 Test Date와 동일하게 초는 출력하지 않고 분까지만 표시한다.
+      return formatDateObj(d, format, false);
+    }
+
+    function pad2(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function normalizeTime(t) {
+      const parts = String(t || '00:00:00').split(':');
+      return `${pad2(parts[0] || 0)}:${pad2(parts[1] || 0)}:${pad2(parts[2] || 0)}`;
+    }
+
+    function formatDateObj(d, format, includeSeconds) {
+      const sep = format === 'dash' ? '-' : '/';
+      const date = `${d.getFullYear()}${sep}${pad2(d.getMonth() + 1)}${sep}${pad2(d.getDate())}`;
+      // 초 단위는 계산에만 사용하고, 실제 출력/저장은 항상 분까지만 표시한다.
+      const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      return `${date} ${time}`;
+    }
+
+    function oldDateToInputDate(oldDate) {
+      const parts = String(oldDate).replaceAll('-', '/').split('/');
+      return `${parts[0]}-${pad2(parts[1])}-${pad2(parts[2])}`;
+    }
+
+    function shouldInclude(item, settings) {
+      if (settings.mode !== 'range') return true;
+      if (!item.no) return false;
+      const n = Number(item.no);
+      const a = Number(settings.noStart);
+      const b = Number(settings.noEnd);
+      if (!Number.isFinite(n) || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+      return n >= Math.min(a, b) && n <= Math.max(a, b);
+    }
+
+    function buildNewDateText(item, settings, changedIndex) {
+      // 증가 간격은 초까지 누적 계산한다. 단, 출력은 formatDateObj()에서 항상 분까지만 표시한다.
+      const intervalSeconds = (settings.intervalMin * 60) + settings.intervalSec;
+      const includeSeconds = false;
+      const addSeconds = intervalSeconds * changedIndex;
+
+      if (settings.mode === 'dateOnly') {
+        const oldTime = normalizeTime(item.oldTime);
+        const d = new Date(`${settings.date}T${oldTime}`);
+        return formatDateObj(d, settings.format, item.oldTime.split(':').length === 3);
+      }
+
+      if (settings.mode === 'timeOnly') {
+        const oldInputDate = oldDateToInputDate(item.oldDate);
+        const d = new Date(`${oldInputDate}T${normalizeTime(settings.time)}`);
+        d.setSeconds(d.getSeconds() + addSeconds);
+        const oldSepFormat = item.oldDate.includes('-') ? 'dash' : settings.format;
+        return formatDateObj(d, oldSepFormat, includeSeconds);
+      }
+
+      const d = new Date(`${settings.date}T${normalizeTime(settings.time)}`);
+      d.setSeconds(d.getSeconds() + addSeconds);
+      return formatDateObj(d, settings.format, includeSeconds);
+    }
+
+    function getPreviewRows(limit = 10) {
+      const settings = getSettings();
+      const rows = [];
+      let changedIndex = 0;
+
+      for (const item of detectedItems) {
+        if (!shouldInclude(item, settings)) continue;
+        const nextDate = buildNewDateText(item, settings, changedIndex);
+        const after = item.originalText.replace(item.parsed.full, `Test Date: ${nextDate}`);
+        rows.push({
+          no: item.no || '-',
+          sheetName: item.sheetName,
+          cell: item.cellAddress,
+          before: item.originalText,
+          after,
+          newDateTime: nextDate
+        });
+        changedIndex += 1;
+      }
+
+      return rows.slice(0, limit).concat(rows.length > limit ? [{
+        no: '...',
+        sheetName: '',
+        cell: '',
+        before: `총 ${rows.length}건 중 ${limit}건만 표시`,
+        after: '',
+        newDateTime: rows[rows.length - 1]?.newDateTime || '-'
+      }] : []);
+    }
+
+    function getAllTargetRows() {
+      const settings = getSettings();
+      const rows = [];
+      let changedIndex = 0;
+
+      for (const item of detectedItems) {
+        if (!shouldInclude(item, settings)) continue;
+        const nextDate = buildNewDateText(item, settings, changedIndex);
+        const after = item.originalText.replace(item.parsed.full, `Test Date: ${nextDate}`);
+        rows.push({ item, after, newDateTime: nextDate });
+        changedIndex += 1;
+      }
+
+      return rows;
+    }
+
+
+    function getCreationTimeUpdate() {
+      if (!creationTimeItem) return null;
+
+      const targets = [];
+      const settings = getSettings();
+      let changedIndex = 0;
+
+      for (const item of detectedItems) {
+        if (!shouldInclude(item, settings)) continue;
+        const nextDate = buildNewDateText(item, settings, changedIndex);
+        targets.push(nextDate);
+        changedIndex += 1;
+      }
+
+      if (targets.length === 0) return null;
+
+      const lastTargetDateTime = targets[targets.length - 1];
+      const creationDateTime = buildCreationTimeTextFromLastDateTime(lastTargetDateTime, settings.format, settings.saveOffsetMin, settings.saveOffsetSec);
+
+      if (!creationDateTime) return null;
+
+      const after = creationTimeItem.originalText.replace(
+        creationTimeItem.parsed.full,
+        `${creationTimeItem.parsed.prefix}${creationDateTime}`
+      );
+
+      return {
+        item: creationTimeItem,
+        after,
+        newDateTime: creationDateTime
+      };
+    }
+
+    function renderPreview() {
+      if (!workbook || detectedItems.length === 0) {
+        previewBox.innerHTML = '<div class="empty">변경할 Test Date 항목이 없습니다.</div>';
+        previewCount.textContent = '0건';
+        lastDateTime.textContent = '-';
+        if (creationTimePreview) creationTimePreview.textContent = '-';
+        return;
+      }
+
+      const allTargets = getAllTargetRows();
+      const rows = getPreviewRows(10);
+
+      if (allTargets.length === 0) {
+        previewBox.innerHTML = '<div class="empty">현재 조건에 맞는 변경 대상이 없습니다.</div>';
+        previewCount.textContent = '0건';
+        lastDateTime.textContent = '-';
+        if (creationTimePreview) creationTimePreview.textContent = '-';
+        return;
+      }
+
+      previewBox.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>NO</th>
+              <th>시트</th>
+              <th>셀</th>
+              <th>변경 전</th>
+              <th>변경 후</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.no}</td>
+                <td>${r.sheetName}</td>
+                <td>${r.cell}</td>
+                <td>${r.before}</td>
+                <td>${r.after}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      previewCount.textContent = `${allTargets.length}건`;
+      lastDateTime.textContent = allTargets[allTargets.length - 1].newDateTime;
+      const creationUpdate = getCreationTimeUpdate();
+      if (creationTimePreview) creationTimePreview.textContent = creationUpdate ? creationUpdate.newDateTime : '대상 없음';
+      setStatus(workStatus, 'ok', `미리보기 생성 완료: 변경 대상 ${allTargets.length}건${creationUpdate ? ' / Creation Time 변경 포함' : ''}`);
+      if (typeof saveProgramStateToFirebase === 'function') saveProgramStateToFirebase();
+    }
+
+
+    function getFileExt(fileName) {
+      const m = String(fileName || '').toLowerCase().match(/\.([^.]+)$/);
+      return m ? m[1] : '';
+    }
+
+    function checkFileType(file) {
+      const ext = getFileExt(file.name);
+
+      if (ext === 'xlsx') {
+        return {
+          ok: true,
+          warn: ''
+        };
+      }
+
+      if (ext === 'xlsm') {
+        return {
+          ok: true,
+          warn: 'xlsm 파일은 읽을 수 있지만, 다운로드 파일은 xlsx로 저장됩니다. 매크로는 보존되지 않습니다.'
+        };
+      }
+
+      if (ext === 'xls') {
+        return {
+          ok: false,
+          warn: 'xls 구형 파일은 이 HTML 도구에서 안정적으로 직접 수정할 수 없습니다. 엑셀에서 xlsx로 다른 이름 저장 후 사용하세요.'
+        };
+      }
+
+      return {
+        ok: false,
+        warn: '지원하지 않는 파일 형식입니다. xlsx 파일을 사용하세요.'
+      };
+    }
+
+    async function loadWorkbook(file) {
+      if (!window.ExcelJS) {
+        throw new Error('ExcelJS 라이브러리를 불러오지 못했습니다. 인터넷 연결 상태를 확인하세요.');
+      }
+
+      const typeCheck = checkFileType(file);
+      if (!typeCheck.ok) {
+        throw new Error(typeCheck.warn);
+      }
+
+      const buffer = await file.arrayBuffer();
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+
+      const items = [];
+      const seenKeys = new Set();
+      creationTimeItem = null;
+
+      wb.eachSheet(worksheet => {
+
+        // 예제 파일 기준:
+        // DataAnalysis 시트의 Creation Time은 F2 셀에 있음.
+        // 파일마다 행/열이 조금 달라질 수 있으므로 상단 10행 전체에서 자동 검색한다.
+        if (String(worksheet.name).toLowerCase() === 'dataanalysis') {
+          const creationCells = [];
+          const maxSearchRow = Math.min(10, worksheet.rowCount || 10);
+
+          for (let rowNumber = 1; rowNumber <= maxSearchRow; rowNumber += 1) {
+            const row = worksheet.getRow(rowNumber);
+
+            row.eachCell({ includeEmpty: false }, cell => {
+              const text = cellText(cell);
+              const parsedCreation = parseCreationTime(text);
+              if (!parsedCreation) return;
+
+              creationCells.push({
+                cell,
+                rowNumber,
+                text,
+                parsed: parsedCreation
+              });
+            });
+          }
+
+          if (creationCells.length > 0) {
+            creationCells.sort((a, b) => {
+              if (a.rowNumber !== b.rowNumber) return a.rowNumber - b.rowNumber;
+              return a.cell.col - b.cell.col;
+            });
+
+            const firstCreation = creationCells[0];
+
+            creationTimeItem = {
+              sheetName: worksheet.name,
+              worksheet,
+              rowNumber: firstCreation.rowNumber,
+              colNumber: firstCreation.cell.col,
+              cellAddress: firstCreation.cell.address,
+              originalText: firstCreation.text,
+              parsed: firstCreation.parsed
+            };
+          }
+        }
+
+        worksheet.eachRow({ includeEmpty: false }, row => {
+          const no = findNoInRow(row);
+
+          // 중요:
+          // 병합 셀 또는 복제 셀 때문에 같은 폼/같은 행에서 Test Date가 여러 번 감지될 수 있음.
+          // 그래서 한 행에서는 가장 왼쪽의 Test Date 셀 1개만 실제 변경 대상으로 인정한다.
+          const dateCells = [];
+
+          row.eachCell({ includeEmpty: false }, cell => {
+            const text = cellText(cell);
+            const parsed = parseTestDate(text);
+            if (!parsed) return;
+
+            dateCells.push({
+              cell,
+              text,
+              parsed
+            });
+          });
+
+          if (dateCells.length === 0) return;
+
+          dateCells.sort((a, b) => a.cell.col - b.cell.col);
+          const first = dateCells[0];
+
+          // 같은 시트/행/NO/날짜시간 조합이 다시 들어오는 경우도 차단
+          const uniqueKey = `${worksheet.name}|${row.number}|${no}|${first.parsed.full}`;
+          if (seenKeys.has(uniqueKey)) return;
+          seenKeys.add(uniqueKey);
+
+          items.push({
+            sheetName: worksheet.name,
+            worksheet,
+            rowNumber: row.number,
+            colNumber: first.cell.col,
+            cellAddress: first.cell.address,
+            no,
+            originalText: first.text,
+            parsed: first.parsed,
+            oldDate: first.parsed.date,
+            oldTime: first.parsed.time,
+            duplicateCountInRow: dateCells.length
+          });
+        });
+      });
+
+      workbook = wb;
+      detectedItems = items;
+      changedBlob = null;
+      changedFileName = '';
+      downloadBtn.disabled = true;
+      return items;
+    }
+
+    function makeOutputName(originalName) {
+      const base = originalName.replace(/\.[^.]+$/, '');
+      return `${base}_TestDate수정본.xlsx`;
+    }
+
+    async function applyChanges() {
+      if (!workbook || !selectedFile) {
+        setStatus(workStatus, 'warn', '먼저 엑셀 파일을 선택하세요.');
+        return;
+      }
+
+      const targets = getAllTargetRows();
+      if (targets.length === 0) {
+        setStatus(workStatus, 'warn', '변경 대상이 없습니다.');
+        return;
+      }
+
+      for (const t of targets) {
+        const cell = t.item.worksheet.getCell(t.item.rowNumber, t.item.colNumber);
+        cell.value = t.after;
+      }
+
+      const creationUpdate = getCreationTimeUpdate();
+      if (creationUpdate) {
+        const creationCell = creationUpdate.item.worksheet.getCell(
+          creationUpdate.item.rowNumber,
+          creationUpdate.item.colNumber
+        );
+        creationCell.value = creationUpdate.after;
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      changedBlob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      changedFileName = makeOutputName(selectedFile.name);
+      downloadBtn.disabled = false;
+      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}. 다운로드 버튼을 누르세요.`);
+    }
+
+    function downloadChangedFile() {
+      if (!changedBlob || !changedFileName) {
+        setStatus(workStatus, 'warn', '먼저 변경 실행을 완료하세요.');
+        return;
+      }
+
+      const url = URL.createObjectURL(changedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = changedFileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus(workStatus, 'ok', `다운로드 요청 완료: ${changedFileName}`);
+    }
+
+    excelFile.addEventListener('change', async () => {
+      selectedFile = excelFile.files[0] || null;
+      workbook = null;
+      detectedItems = [];
+      creationTimeItem = null;
+      changedBlob = null;
+      changedFileName = '';
+      downloadBtn.disabled = true;
+      previewCount.textContent = '0건';
+      lastDateTime.textContent = '-';
+      if (creationTimePreview) creationTimePreview.textContent = '-';
+
+      if (!selectedFile) {
+        setStatus(fileStatus, '', '아직 파일이 선택되지 않았습니다.');
+        setStatus(workStatus, '', '대기 중입니다.');
+        return;
+      }
+
+      setStatus(fileStatus, '', `파일 분석 중: ${selectedFile.name}`);
+      setStatus(workStatus, '', '엑셀 파일을 읽는 중입니다.');
+
+      try {
+        const items = await loadWorkbook(selectedFile);
+        if (items.length === 0) {
+          setStatus(fileStatus, 'warn', `선택된 파일: ${selectedFile.name}`);
+          setStatus(workStatus, 'warn', 'Test Date 항목을 찾지 못했습니다.');
+          previewBox.innerHTML = '<div class="empty">Test Date: YYYY/MM/DD HH:MM 형식의 셀을 찾지 못했습니다.</div>';
+          return;
+        }
+
+        const duplicateRows = items.filter(x => (x.duplicateCountInRow || 1) > 1).length;
+        const duplicateNotice = duplicateRows > 0 ? ` / 중복 감지 ${duplicateRows}행 자동 정리` : '';
+        const typeCheck = checkFileType(selectedFile);
+        const typeNotice = typeCheck.warn ? ` / ${typeCheck.warn}` : '';
+        const creationNotice = creationTimeItem ? ` / Creation Time 발견: ${creationTimeItem.cellAddress}` : ' / Creation Time 없음';
+        setStatus(fileStatus, 'ok', `선택된 파일: ${selectedFile.name} / Test Date ${items.length}건 발견${duplicateNotice}${creationNotice}${typeNotice}`);
+        renderPreview();
+      } catch (err) {
+        console.error(err);
+        setStatus(fileStatus, 'warn', `파일 읽기 실패: ${selectedFile.name}`);
+        setStatus(workStatus, 'warn', err.message || '엑셀 파일을 읽는 중 오류가 발생했습니다.');
+      }
+    });
+
+    previewBtn.addEventListener('click', renderPreview);
+    convertBtn.addEventListener('click', applyChanges);
+    downloadBtn.addEventListener('click', downloadChangedFile);
+
+    resetBtn.addEventListener('click', () => {
+      excelFile.value = '';
+      selectedFile = null;
+      workbook = null;
+      detectedItems = [];
+      creationTimeItem = null;
+      changedBlob = null;
+      changedFileName = '';
+      document.getElementById('targetDate').value = '2026-04-29';
+      document.getElementById('startTime').value = '08:30:00';
+      document.getElementById('intervalMin').value = '0';
+      document.getElementById('intervalSec').value = '0';
+      if (document.getElementById('saveOffsetMin')) document.getElementById('saveOffsetMin').value = '2';
+      if (document.getElementById('saveOffsetSec')) document.getElementById('saveOffsetSec').value = '0';
+      document.getElementById('dateFormat').value = 'slash';
+      document.querySelector('input[name="mode"][value="all"]').checked = true;
+      document.getElementById('noStart').value = '000002';
+      document.getElementById('noEnd').value = '000305';
+      previewBox.innerHTML = '<div class="empty">엑셀 파일을 선택하면 Test Date 항목을 자동 분석합니다.</div>';
+      previewCount.textContent = '0건';
+      lastDateTime.textContent = '-';
+      if (creationTimePreview) creationTimePreview.textContent = '-';
+      setStatus(fileStatus, '', '아직 파일이 선택되지 않았습니다.');
+      setStatus(workStatus, '', '대기 중입니다.');
+      downloadBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>
