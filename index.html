@@ -430,35 +430,6 @@
     }
 
 
-    .recovery-code-box {
-      margin-top: 8px;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #f8fafc;
-    }
-
-    .recovery-code-box label {
-      margin-bottom: 6px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .recovery-code-output {
-      width: 100%;
-      height: 38px;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 0 10px;
-      background: #fff;
-      color: var(--primary);
-      font-size: 16px;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-align: center;
-    }
-
-
     .admin-mode-login-overlay {
       position: fixed;
       inset: 0;
@@ -624,12 +595,7 @@
 
           <div class="admin-panel-actions">
             <button class="btn-primary" type="button" id="changeEntryPwBtn">기본화면 비밀번호 변경</button>
-            <button class="btn-sub" type="button" id="resetEntryPwBtn">복구코드생성</button>
-          </div>
-
-          <div class="recovery-code-box">
-            <label for="entryRecoveryCodeOutput">기본화면 진입 복구코드</label>
-            <input id="entryRecoveryCodeOutput" class="recovery-code-output" type="text" readonly value="" placeholder="복구코드생성 버튼을 누르세요" />
+            <button class="btn-sub" type="button" id="resetEntryPwBtn">기본값 1234 복구</button>
           </div>
 
           <div class="section-divider"></div>
@@ -652,12 +618,7 @@
 
           <div class="admin-panel-actions">
             <button class="btn-primary" type="button" id="changeModePwBtn">관리자 모드 비밀번호 변경</button>
-            <button class="btn-sub" type="button" id="resetModePwBtn">복구코드생성</button>
-          </div>
-
-          <div class="recovery-code-box">
-            <label for="adminModeRecoveryCodeOutput">관리자 모드 복구코드</label>
-            <input id="adminModeRecoveryCodeOutput" class="recovery-code-output" type="text" readonly value="" placeholder="복구코드생성 버튼을 누르세요" />
+            <button class="btn-sub" type="button" id="resetModePwBtn">기본값 4321 복구</button>
           </div>
 
 
@@ -898,8 +859,6 @@
     const ADMIN_MODE_PASSWORD_DEFAULT = '4321';
     const ENTRY_PASSWORD_KEY = 'excelTestDateEntryPassword';
     const ADMIN_MODE_PASSWORD_KEY = 'excelTestDateAdminModePassword';
-    const ENTRY_RECOVERY_CODE_KEY = 'excelTestDateEntryRecoveryCode';
-    const ADMIN_MODE_RECOVERY_CODE_KEY = 'excelTestDateAdminModeRecoveryCode';
     const ENTRY_SESSION_KEY = 'excelTestDateEntryAuthed';
     const ADMIN_MODE_SESSION_KEY = 'excelTestDateAdminModeAuthed';
 
@@ -936,8 +895,6 @@
     const clearSessionBtn = document.getElementById('clearSessionBtn');
     const clearProgramBtn = document.getElementById('clearProgramBtn');
     const adminPwStatus = document.getElementById('adminPwStatus');
-    const entryRecoveryCodeOutput = document.getElementById('entryRecoveryCodeOutput');
-    const adminModeRecoveryCodeOutput = document.getElementById('adminModeRecoveryCodeOutput');
 
     function getEntryPassword() {
       return localStorage.getItem(ENTRY_PASSWORD_KEY) || ENTRY_PASSWORD_DEFAULT;
@@ -955,136 +912,6 @@
       localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, value);
     }
 
-    function getLocalPasswordPayload() {
-      return {
-        entryPassword: getEntryPassword(),
-        adminModePassword: getAdminModePassword(),
-        entryRecoveryCode: getEntryRecoveryCode(),
-        adminModeRecoveryCode: getAdminModeRecoveryCode()
-      };
-    }
-
-    function getDefaultPasswordPayload() {
-      return {
-        entryPassword: ENTRY_PASSWORD_DEFAULT,
-        adminModePassword: ADMIN_MODE_PASSWORD_DEFAULT,
-        entryRecoveryCode: '',
-        adminModeRecoveryCode: ''
-      };
-    }
-
-    function normalizePasswordPayload(data) {
-      const defaults = getDefaultPasswordPayload();
-      const source = data && typeof data === 'object' ? data : {};
-      return {
-        entryPassword: typeof source.entryPassword === 'string' && source.entryPassword.length > 0 ? source.entryPassword : defaults.entryPassword,
-        adminModePassword: typeof source.adminModePassword === 'string' && source.adminModePassword.length > 0 ? source.adminModePassword : defaults.adminModePassword,
-        entryRecoveryCode: typeof source.entryRecoveryCode === 'string' ? source.entryRecoveryCode : '',
-        adminModeRecoveryCode: typeof source.adminModeRecoveryCode === 'string' ? source.adminModeRecoveryCode : ''
-      };
-    }
-
-    function applyPasswordPayloadToLocal(data) {
-      const payload = normalizePasswordPayload(data);
-      suppressFirebasePasswordSave = true;
-      localStorage.setItem(ENTRY_PASSWORD_KEY, payload.entryPassword);
-      localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, payload.adminModePassword);
-      localStorage.setItem(ENTRY_RECOVERY_CODE_KEY, payload.entryRecoveryCode);
-      localStorage.setItem(ADMIN_MODE_RECOVERY_CODE_KEY, payload.adminModeRecoveryCode);
-      refreshRecoveryCodeOutputs();
-      suppressFirebasePasswordSave = false;
-      firebasePasswordsLoaded = true;
-      return payload;
-    }
-
-    async function ensureFirebasePasswordDocument() {
-      const ready = await ensureFirebaseReady();
-      const ref = ready ? firebaseRef("passwords") : null;
-      if (!ref) return null;
-
-      const result = await ref.transaction(current => {
-        if (current && typeof current === 'object') return current;
-        return {
-          ...getDefaultPasswordPayload(),
-          initializedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-      });
-
-      const snapshot = result && result.snapshot ? result.snapshot : await ref.once("value");
-      return snapshot.val();
-    }
-
-
-    function generateRecoveryCode() {
-      const array = new Uint32Array(1);
-      if (window.crypto && window.crypto.getRandomValues) {
-        window.crypto.getRandomValues(array);
-        return String(100000000 + (array[0] % 900000000));
-      }
-      return String(Math.floor(100000000 + Math.random() * 900000000));
-    }
-
-    function getEntryRecoveryCode() {
-      return localStorage.getItem(ENTRY_RECOVERY_CODE_KEY) || '';
-    }
-
-    function getAdminModeRecoveryCode() {
-      return localStorage.getItem(ADMIN_MODE_RECOVERY_CODE_KEY) || '';
-    }
-
-    function setRecoveryCodeOutput(type, code) {
-      if (type === 'entry' && entryRecoveryCodeOutput) entryRecoveryCodeOutput.value = code || '';
-      if (type === 'admin' && adminModeRecoveryCodeOutput) adminModeRecoveryCodeOutput.value = code || '';
-    }
-
-    function refreshRecoveryCodeOutputs() {
-      setRecoveryCodeOutput('entry', getEntryRecoveryCode());
-      setRecoveryCodeOutput('admin', getAdminModeRecoveryCode());
-    }
-
-    async function copyTextToClipboard(text) {
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(text);
-          return true;
-        }
-      } catch (error) {
-        console.warn(error);
-      }
-      return false;
-    }
-
-    async function createAndShowRecoveryCode(type) {
-      const isEntry = type === 'entry';
-      const label = isEntry ? '기본화면 진입' : '관리자 모드';
-      const recoveryCode = generateRecoveryCode();
-
-      const latest = await loadFirebasePasswordsOnce({ blockOnFailure: true });
-      if (!latest) {
-        setAdminStatus(`${label} 복구코드 생성 실패: Firebase 비밀번호 데이터를 먼저 불러오지 못했습니다.`, false);
-        alert(`${label} 복구코드 생성 실패\n\nFirebase 연결 또는 권한을 확인하세요.`);
-        return;
-      }
-
-      const payload = {
-        ...latest,
-        [isEntry ? 'entryRecoveryCode' : 'adminModeRecoveryCode']: recoveryCode
-      };
-
-      const saved = await savePasswordsToFirebase(payload);
-      if (!saved) {
-        setAdminStatus(`${label} 복구코드 생성 실패: Firebase 저장 실패`, false);
-        alert(`${label} 복구코드 생성 실패\n\nFirebase 저장 실패입니다.`);
-        return;
-      }
-
-      applyPasswordPayloadToLocal(payload);
-      const copied = await copyTextToClipboard(recoveryCode);
-      setAdminStatus(`${label} 복구코드 생성 완료: ${recoveryCode}${copied ? ' / 클립보드 복사 완료' : ''}`);
-      alert(`${label} 복구코드가 생성되었습니다.\n\n${recoveryCode}`);
-    }
-
     function showLogin() {
       loginScreen.classList.remove('hidden');
       mainApp.classList.add('hidden');
@@ -1099,23 +926,21 @@
       loginScreen.classList.add('hidden');
       mainApp.classList.remove('hidden');
       adminPanel.classList.remove('active');
-      refreshRecoveryCodeOutputs();
       adminModeLoginOverlay.classList.remove('active');
     }
 
     async function checkEntryPassword() {
-      adminLoginError.textContent = 'Firebase 비밀번호 확인 중...';
+      adminLoginError.textContent = '비밀번호 확인 중...';
 
-      const latest = await loadFirebasePasswordsOnce({ blockOnFailure: true });
-      if (!latest) {
-        adminLoginError.textContent = 'Firebase 비밀번호를 불러오지 못했습니다. 연결/권한을 확인하세요.';
-        adminPasswordInput.select();
-        return;
+      try {
+        await loadFirebasePasswordsOnce();
+      } catch (error) {
+        console.error(error);
       }
 
       const input = adminPasswordInput.value.trim();
 
-      if (input === latest.entryPassword) {
+      if (input === getEntryPassword()) {
         sessionStorage.setItem(ENTRY_SESSION_KEY, '1');
         adminLoginError.textContent = '';
         showApp();
@@ -1146,18 +971,17 @@
     }
 
     async function checkAdminModePassword() {
-      adminModeLoginError.textContent = 'Firebase 비밀번호 확인 중...';
+      adminModeLoginError.textContent = '비밀번호 확인 중...';
 
-      const latest = await loadFirebasePasswordsOnce({ blockOnFailure: true });
-      if (!latest) {
-        adminModeLoginError.textContent = 'Firebase 비밀번호를 불러오지 못했습니다. 연결/권한을 확인하세요.';
-        adminModePasswordInput.select();
-        return;
+      try {
+        await loadFirebasePasswordsOnce();
+      } catch (error) {
+        console.error(error);
       }
 
       const input = adminModePasswordInput.value.trim();
 
-      if (input === latest.adminModePassword) {
+      if (input === getAdminModePassword()) {
         sessionStorage.setItem(ADMIN_MODE_SESSION_KEY, '1');
         adminModeLoginError.textContent = '';
         closeAdminModePasswordBox();
@@ -1174,19 +998,12 @@
       adminPwStatus.style.color = ok ? 'var(--ok)' : 'var(--danger)';
     }
 
-    async function changePassword({ currentInput, nextInput, nextInput2, getPassword, setPassword, label, passwordType }) {
-      const latest = await loadFirebasePasswordsOnce({ blockOnFailure: true });
-      if (!latest) {
-        setAdminStatus(`${label} 비밀번호 변경 실패: Firebase 비밀번호 데이터를 불러오지 못했습니다.`, false);
-        return;
-      }
-
+    function changePassword({ currentInput, nextInput, nextInput2, getPassword, setPassword, label }) {
       const current = currentInput.value.trim();
       const next = nextInput.value.trim();
       const next2 = nextInput2.value.trim();
-      const currentPassword = passwordType === 'entry' ? latest.entryPassword : latest.adminModePassword;
 
-      if (current !== currentPassword) {
+      if (current !== getPassword()) {
         setAdminStatus(`${label} 현재 비밀번호가 맞지 않습니다.`, false);
         currentInput.select();
         return;
@@ -1204,22 +1021,12 @@
         return;
       }
 
-      const payload = {
-        ...latest,
-        [passwordType === 'entry' ? 'entryPassword' : 'adminModePassword']: next
-      };
-
-      const saved = await savePasswordsToFirebase(payload);
-      if (!saved) {
-        setAdminStatus(`${label} 비밀번호 변경 실패: Firebase 저장 실패`, false);
-        return;
-      }
-
-      applyPasswordPayloadToLocal(payload);
+      setPassword(next);
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
       currentInput.value = '';
       nextInput.value = '';
       nextInput2.value = '';
-      setAdminStatus(`${label} 비밀번호가 Firebase에 저장되고 실시간 동기화되었습니다.`);
+      setAdminStatus(`${label} 비밀번호가 변경되었습니다.`);
     }
 
     adminLoginBtn.addEventListener('click', checkEntryPassword);
@@ -1275,13 +1082,18 @@
         nextInput2: newEntryPw2,
         getPassword: getEntryPassword,
         setPassword: setEntryPassword,
-        label: '기본화면 진입',
-        passwordType: 'entry'
+        label: '기본화면 진입'
       });
     });
 
     resetEntryPwBtn.addEventListener('click', () => {
-      createAndShowRecoveryCode('entry');
+      if (!confirm('기본화면 진입 비밀번호를 기본값 1234로 복구할까요?')) return;
+      localStorage.removeItem(ENTRY_PASSWORD_KEY);
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
+      currentEntryPw.value = '';
+      newEntryPw.value = '';
+      newEntryPw2.value = '';
+      setAdminStatus('기본화면 진입 비밀번호가 1234로 복구되었습니다.');
     });
 
     changeModePwBtn.addEventListener('click', () => {
@@ -1291,13 +1103,20 @@
         nextInput2: newModePw2,
         getPassword: getAdminModePassword,
         setPassword: setAdminModePassword,
-        label: '관리자 모드',
-        passwordType: 'admin'
+        label: '관리자 모드'
       });
     });
 
     resetModePwBtn.addEventListener('click', () => {
-      createAndShowRecoveryCode('admin');
+      if (!confirm('관리자 모드 비밀번호를 기본값 4321로 복구할까요?')) return;
+      localStorage.removeItem(ADMIN_MODE_PASSWORD_KEY);
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
+      currentModePw.value = '';
+      newModePw.value = '';
+      newModePw2.value = '';
+      sessionStorage.removeItem(ADMIN_MODE_SESSION_KEY);
+      adminPanel.classList.remove('active');
+      setAdminStatus('관리자 모드 비밀번호가 4321로 복구되었습니다. 관리자 모드는 다시 로그인해야 합니다.');
     });
 
     clearSessionBtn.addEventListener('click', () => {
@@ -1444,54 +1263,58 @@ const firebaseConfig = {
     }
 
 
-    async function loadFirebasePasswordsOnce(options = {}) {
-      const { blockOnFailure = false } = options;
-
+    async function loadFirebasePasswordsOnce() {
       try {
-        const ready = await ensureFirebaseReady();
-        const ref = ready ? firebaseRef("passwords") : null;
+        if (!firebaseReady || !firebaseDb) {
+          initFirebase();
+        }
 
-        if (!ref) {
-          const message = "Firebase 비밀번호 불러오기 실패: 연결 설정을 확인하세요.";
-          setFirebaseStatus("warn", message);
-          if (blockOnFailure) return null;
+        if (!firebaseReady || !firebaseDb) {
           return false;
         }
 
-        let snapshot = await withTimeout(ref.once("value"), 8000, null);
+        const snapshot = await withTimeout(
+          firebaseDb.ref(`${FIREBASE_ROOT_PATH}/passwords`).once("value"),
+          2000,
+          null
+        );
 
         if (!snapshot) {
-          const message = "Firebase 비밀번호 응답 지연: 로컬 비밀번호로 확인하지 않습니다. 다시 시도하세요.";
-          setFirebaseStatus("warn", message);
-          if (blockOnFailure) return null;
+          setFirebaseStatus("warn", "Firebase 비밀번호 응답 지연: 로컬 비밀번호로 확인합니다.");
           return false;
         }
 
-        let data = snapshot.val();
+        const data = snapshot.val();
 
         if (!data) {
-          data = await ensureFirebasePasswordDocument();
-          if (!data) {
-            const message = "Firebase 비밀번호 초기화 실패: 권한 또는 연결을 확인하세요.";
-            setFirebaseStatus("warn", message);
-            if (blockOnFailure) return null;
-            return false;
-          }
+          await withTimeout(savePasswordsToFirebase(), 1500, false);
+          firebasePasswordsLoaded = true;
+          return true;
         }
 
-        const payload = applyPasswordPayloadToLocal(data);
+        suppressFirebasePasswordSave = true;
+
+        if (typeof data.entryPassword === "string" && data.entryPassword.length > 0) {
+          localStorage.setItem(ENTRY_PASSWORD_KEY, data.entryPassword);
+        }
+
+        if (typeof data.adminModePassword === "string" && data.adminModePassword.length > 0) {
+          localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, data.adminModePassword);
+        }
+
+        suppressFirebasePasswordSave = false;
+        firebasePasswordsLoaded = true;
         setFirebaseStatus("ok", "Firebase 비밀번호 불러오기 완료");
-        return payload;
+        return true;
       } catch (error) {
         suppressFirebasePasswordSave = false;
         console.error(error);
-        setFirebaseStatus("warn", "Firebase 비밀번호 불러오기 실패: " + error.message);
-        if (blockOnFailure) return null;
+        setFirebaseStatus("warn", "Firebase 비밀번호 불러오기 실패: 로컬 비밀번호로 확인합니다.");
         return false;
       }
     }
 
-    async function savePasswordsToFirebase(nextPayload) {
+    async function savePasswordsToFirebase() {
       const ready = await ensureFirebaseReady();
       const ref = ready ? firebaseRef("passwords") : null;
 
@@ -1500,15 +1323,14 @@ const firebaseConfig = {
         return false;
       }
 
-      const basePayload = nextPayload ? normalizePasswordPayload(nextPayload) : getLocalPasswordPayload();
       const payload = {
-        ...basePayload,
+        entryPassword: getEntryPassword(),
+        adminModePassword: getAdminModePassword(),
         updatedAt: new Date().toISOString()
       };
 
       try {
         await ref.update(payload);
-        applyPasswordPayloadToLocal(payload);
         setFirebaseStatus("ok", "Firebase 비밀번호 저장 완료");
         return true;
       } catch (error) {
@@ -1524,25 +1346,27 @@ const firebaseConfig = {
 
       firebasePasswordBound = true;
 
-      ref.on("value", async snapshot => {
-        try {
-          let data = snapshot.val();
+      ref.on("value", snapshot => {
+        const data = snapshot.val();
 
-          if (!data) {
-            data = await ensureFirebasePasswordDocument();
-            if (!data) {
-              setFirebaseStatus("warn", "Firebase 비밀번호 데이터 없음: 초기화 실패");
-              return;
-            }
-          }
-
-          applyPasswordPayloadToLocal(data);
-          setFirebaseStatus("ok", "Firebase 비밀번호 실시간 동기화 완료");
-        } catch (error) {
-          suppressFirebasePasswordSave = false;
-          console.error(error);
-          setFirebaseStatus("warn", "Firebase 비밀번호 읽기 실패: " + error.message);
+        if (!data) {
+          savePasswordsToFirebase().catch(() => {});
+          return;
         }
+
+        suppressFirebasePasswordSave = true;
+
+        if (typeof data.entryPassword === "string" && data.entryPassword.length > 0) {
+          localStorage.setItem(ENTRY_PASSWORD_KEY, data.entryPassword);
+        }
+
+        if (typeof data.adminModePassword === "string" && data.adminModePassword.length > 0) {
+          localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, data.adminModePassword);
+        }
+
+        suppressFirebasePasswordSave = false;
+        firebasePasswordsLoaded = true;
+        setFirebaseStatus("ok", "Firebase 비밀번호 실시간 동기화 완료");
       }, error => {
         console.error(error);
         setFirebaseStatus("warn", "Firebase 비밀번호 읽기 실패: " + error.message);
@@ -1579,7 +1403,6 @@ const firebaseConfig = {
     }
 
     window.addEventListener("DOMContentLoaded", () => {
-      refreshRecoveryCodeOutputs();
       bindProgramInputAutoSave();
       initFirebase();
       setTimeout(() => {
