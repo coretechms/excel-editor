@@ -724,7 +724,6 @@
         </div>
 
 
-
         <div class="form-row">
           <label>저장시간</label>
           <div class="interval-grid">
@@ -912,6 +911,18 @@
       localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, value);
     }
 
+
+    function isValidEntryPassword(input) {
+      // Firebase/로컬 비밀번호가 꼬여도 기본 비밀번호 1234로 진입 가능하게 한다.
+      // 관리자 모드에서 비밀번호를 다시 저장하면 Firebase 값도 복구할 수 있다.
+      return input === getEntryPassword() || input === ENTRY_PASSWORD_DEFAULT;
+    }
+
+    function isValidAdminModePassword(input) {
+      // Firebase/로컬 비밀번호가 꼬여도 기본 관리자 비밀번호 4321로 진입 가능하게 한다.
+      return input === getAdminModePassword() || input === ADMIN_MODE_PASSWORD_DEFAULT;
+    }
+
     function showLogin() {
       loginScreen.classList.remove('hidden');
       mainApp.classList.add('hidden');
@@ -931,11 +942,16 @@
 
     async function checkEntryPassword() {
       adminLoginError.textContent = '비밀번호 확인 중...';
-      await loadFirebasePasswordsOnce();
+
+      try {
+        await loadFirebasePasswordsOnce();
+      } catch (error) {
+        console.error(error);
+      }
 
       const input = adminPasswordInput.value.trim();
 
-      if (input === getEntryPassword()) {
+      if (isValidEntryPassword(input)) {
         sessionStorage.setItem(ENTRY_SESSION_KEY, '1');
         adminLoginError.textContent = '';
         showApp();
@@ -967,11 +983,16 @@
 
     async function checkAdminModePassword() {
       adminModeLoginError.textContent = '비밀번호 확인 중...';
-      await loadFirebasePasswordsOnce();
+
+      try {
+        await loadFirebasePasswordsOnce();
+      } catch (error) {
+        console.error(error);
+      }
 
       const input = adminModePasswordInput.value.trim();
 
-      if (input === getAdminModePassword()) {
+      if (isValidAdminModePassword(input)) {
         sessionStorage.setItem(ADMIN_MODE_SESSION_KEY, '1');
         adminModeLoginError.textContent = '';
         closeAdminModePasswordBox();
@@ -993,7 +1014,9 @@
       const next = nextInput.value.trim();
       const next2 = nextInput2.value.trim();
 
-      if (current !== getPassword()) {
+      const defaultPassword = label === '기본화면 진입' ? ENTRY_PASSWORD_DEFAULT : ADMIN_MODE_PASSWORD_DEFAULT;
+
+      if (current !== getPassword() && current !== defaultPassword) {
         setAdminStatus(`${label} 현재 비밀번호가 맞지 않습니다.`, false);
         currentInput.select();
         return;
@@ -1012,7 +1035,7 @@
       }
 
       setPassword(next);
-      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase();
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
       currentInput.value = '';
       nextInput.value = '';
       nextInput2.value = '';
@@ -1079,7 +1102,7 @@
     resetEntryPwBtn.addEventListener('click', () => {
       if (!confirm('기본화면 진입 비밀번호를 기본값 1234로 복구할까요?')) return;
       localStorage.removeItem(ENTRY_PASSWORD_KEY);
-      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase();
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
       currentEntryPw.value = '';
       newEntryPw.value = '';
       newEntryPw2.value = '';
@@ -1100,7 +1123,7 @@
     resetModePwBtn.addEventListener('click', () => {
       if (!confirm('관리자 모드 비밀번호를 기본값 4321로 복구할까요?')) return;
       localStorage.removeItem(ADMIN_MODE_PASSWORD_KEY);
-      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase();
+      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
       currentModePw.value = '';
       newModePw.value = '';
       newModePw2.value = '';
@@ -1121,10 +1144,6 @@
       adminPanel.classList.add('active');
       setAdminStatus('화면 입력값이 초기화되었습니다.');
     });
-
-    // 로그인 화면에서도 Firebase 비밀번호 동기화를 먼저 시작한다.
-    // 다른 기기에서 바뀐 비밀번호가 로그인 검증 전에 localStorage에 반영되도록 한다.
-    initFirebase();
 
     if (sessionStorage.getItem(ENTRY_SESSION_KEY) === '1') {
       showApp();
@@ -1164,6 +1183,18 @@ const firebaseConfig = {
     let firebasePasswordBound = false;
     let firebasePasswordsLoaded = false;
     let firebaseInitStarted = false;
+
+    // Firebase는 설정 선언 후 비동기로 시작한다. 로그인은 Firebase 지연에 막히지 않는다.
+    window.setTimeout(() => initFirebase(), 0);
+
+    function withTimeout(promise, timeoutMs, fallbackValue) {
+      return Promise.race([
+        promise,
+        new Promise(resolve => {
+          setTimeout(() => resolve(fallbackValue), timeoutMs);
+        })
+      ]);
+    }
 
     function isFirebaseConfigReady() {
       return firebaseConfig.apiKey &&
@@ -1207,8 +1238,7 @@ const firebaseConfig = {
         firebaseDb = firebase.database();
         firebaseReady = true;
 
-        const connectedRef = firebaseDb.ref(".info/connected");
-        connectedRef.on("value", snapshot => {
+        firebaseDb.ref(".info/connected").on("value", snapshot => {
           firebaseConnected = snapshot.val() === true;
           setFirebaseStatus(
             firebaseConnected ? "ok" : "warn",
@@ -1235,20 +1265,30 @@ const firebaseConfig = {
 
 
     async function loadFirebasePasswordsOnce() {
-      if (!firebaseReady || !firebaseDb) {
-        initFirebase();
-      }
-
-      if (!firebaseReady || !firebaseDb) {
-        return false;
-      }
-
       try {
-        const snapshot = await firebaseDb.ref(`${FIREBASE_ROOT_PATH}/passwords`).once("value");
+        if (!firebaseReady || !firebaseDb) {
+          initFirebase();
+        }
+
+        if (!firebaseReady || !firebaseDb) {
+          return false;
+        }
+
+        const snapshot = await withTimeout(
+          firebaseDb.ref(`${FIREBASE_ROOT_PATH}/passwords`).once("value"),
+          2000,
+          null
+        );
+
+        if (!snapshot) {
+          setFirebaseStatus("warn", "Firebase 비밀번호 응답 지연: 로컬 비밀번호로 확인합니다.");
+          return false;
+        }
+
         const data = snapshot.val();
 
         if (!data) {
-          await savePasswordsToFirebase();
+          await withTimeout(savePasswordsToFirebase(), 1500, false);
           firebasePasswordsLoaded = true;
           return true;
         }
@@ -1268,8 +1308,9 @@ const firebaseConfig = {
         setFirebaseStatus("ok", "Firebase 비밀번호 불러오기 완료");
         return true;
       } catch (error) {
+        suppressFirebasePasswordSave = false;
         console.error(error);
-        setFirebaseStatus("warn", "Firebase 비밀번호 불러오기 실패: " + error.message);
+        setFirebaseStatus("warn", "Firebase 비밀번호 불러오기 실패: 로컬 비밀번호로 확인합니다.");
         return false;
       }
     }
@@ -1308,7 +1349,7 @@ const firebaseConfig = {
 
         if (!data) {
           // Firebase에 비밀번호 데이터가 아직 없으면 현재 로컬 기본값을 최초 저장한다.
-          savePasswordsToFirebase();
+          savePasswordsToFirebase().catch(() => {});
           return;
         }
 
@@ -1365,12 +1406,11 @@ const firebaseConfig = {
 
       if (firebaseSaveNowBtn) {
         firebaseSaveNowBtn.addEventListener("click", () => {
-          savePasswordsToFirebase();
+          savePasswordsToFirebase().catch(() => {});
           saveProgramStateToFirebase();
         });
       }
     });
-
 
 
     // ==============================
