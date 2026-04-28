@@ -430,6 +430,35 @@
     }
 
 
+    .recovery-code-box {
+      margin-top: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    .recovery-code-box label {
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .recovery-code-output {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--primary);
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-align: center;
+    }
+
+
     .admin-mode-login-overlay {
       position: fixed;
       inset: 0;
@@ -545,7 +574,8 @@
 <body>
   <section id="loginScreen" class="login-screen">
     <div class="login-box">
-      <h2 class="login-title">엑셀변환 진입 비밀번호</h2>
+      <h2 class="login-title"><strong>(주)코아텍 비아이티</strong></h2>
+      <p class="login-desc">Test Date Edit</p>
       <p class="login-desc">진입하려면 비밀번호를 입력하세요.</p>
 
       <div class="form-row">
@@ -595,7 +625,12 @@
 
           <div class="admin-panel-actions">
             <button class="btn-primary" type="button" id="changeEntryPwBtn">기본화면 비밀번호 변경</button>
-            <button class="btn-sub" type="button" id="resetEntryPwBtn">기본값 1234 복구</button>
+            <button class="btn-sub" type="button" id="resetEntryPwBtn">복구코드생성</button>
+          </div>
+
+          <div class="recovery-code-box">
+            <label for="entryRecoveryCodeOutput">기본화면 진입 복구코드</label>
+            <input id="entryRecoveryCodeOutput" class="recovery-code-output" type="text" readonly value="" placeholder="복구코드생성 버튼을 누르세요" />
           </div>
 
           <div class="section-divider"></div>
@@ -618,7 +653,12 @@
 
           <div class="admin-panel-actions">
             <button class="btn-primary" type="button" id="changeModePwBtn">관리자 모드 비밀번호 변경</button>
-            <button class="btn-sub" type="button" id="resetModePwBtn">기본값 4321 복구</button>
+            <button class="btn-sub" type="button" id="resetModePwBtn">복구코드생성</button>
+          </div>
+
+          <div class="recovery-code-box">
+            <label for="adminModeRecoveryCodeOutput">관리자 모드 복구코드</label>
+            <input id="adminModeRecoveryCodeOutput" class="recovery-code-output" type="text" readonly value="" placeholder="복구코드생성 버튼을 누르세요" />
           </div>
 
 
@@ -859,6 +899,8 @@
     const ADMIN_MODE_PASSWORD_DEFAULT = '4321';
     const ENTRY_PASSWORD_KEY = 'excelTestDateEntryPassword';
     const ADMIN_MODE_PASSWORD_KEY = 'excelTestDateAdminModePassword';
+    const ENTRY_RECOVERY_CODE_KEY = 'excelTestDateEntryRecoveryCode';
+    const ADMIN_MODE_RECOVERY_CODE_KEY = 'excelTestDateAdminModeRecoveryCode';
     const ENTRY_SESSION_KEY = 'excelTestDateEntryAuthed';
     const ADMIN_MODE_SESSION_KEY = 'excelTestDateAdminModeAuthed';
 
@@ -895,6 +937,8 @@
     const clearSessionBtn = document.getElementById('clearSessionBtn');
     const clearProgramBtn = document.getElementById('clearProgramBtn');
     const adminPwStatus = document.getElementById('adminPwStatus');
+    const entryRecoveryCodeOutput = document.getElementById('entryRecoveryCodeOutput');
+    const adminModeRecoveryCodeOutput = document.getElementById('adminModeRecoveryCodeOutput');
 
     function getEntryPassword() {
       return localStorage.getItem(ENTRY_PASSWORD_KEY) || ENTRY_PASSWORD_DEFAULT;
@@ -912,6 +956,63 @@
       localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, value);
     }
 
+
+    function generateRecoveryCode() {
+      const array = new Uint32Array(1);
+      if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(array);
+        return String(100000000 + (array[0] % 900000000));
+      }
+      return String(Math.floor(100000000 + Math.random() * 900000000));
+    }
+
+    function getEntryRecoveryCode() {
+      return localStorage.getItem(ENTRY_RECOVERY_CODE_KEY) || '';
+    }
+
+    function getAdminModeRecoveryCode() {
+      return localStorage.getItem(ADMIN_MODE_RECOVERY_CODE_KEY) || '';
+    }
+
+    function setRecoveryCodeOutput(type, code) {
+      if (type === 'entry' && entryRecoveryCodeOutput) entryRecoveryCodeOutput.value = code || '';
+      if (type === 'admin' && adminModeRecoveryCodeOutput) adminModeRecoveryCodeOutput.value = code || '';
+    }
+
+    function refreshRecoveryCodeOutputs() {
+      setRecoveryCodeOutput('entry', getEntryRecoveryCode());
+      setRecoveryCodeOutput('admin', getAdminModeRecoveryCode());
+    }
+
+    async function copyTextToClipboard(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+      return false;
+    }
+
+    async function createAndShowRecoveryCode(type) {
+      const recoveryCode = generateRecoveryCode();
+      const isEntry = type === 'entry';
+
+      localStorage.setItem(isEntry ? ENTRY_RECOVERY_CODE_KEY : ADMIN_MODE_RECOVERY_CODE_KEY, recoveryCode);
+      setRecoveryCodeOutput(isEntry ? 'entry' : 'admin', recoveryCode);
+
+      if (typeof suppressFirebasePasswordSave === 'undefined' || !suppressFirebasePasswordSave) {
+        if (typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
+      }
+
+      const label = isEntry ? '기본화면 진입' : '관리자 모드';
+      const copied = await copyTextToClipboard(recoveryCode);
+      setAdminStatus(`${label} 복구코드 생성 완료: ${recoveryCode}${copied ? ' / 클립보드 복사 완료' : ''}`);
+      alert(`${label} 복구코드가 생성되었습니다.\n\n${recoveryCode}`);
+    }
+
     function showLogin() {
       loginScreen.classList.remove('hidden');
       mainApp.classList.add('hidden');
@@ -926,6 +1027,7 @@
       loginScreen.classList.add('hidden');
       mainApp.classList.remove('hidden');
       adminPanel.classList.remove('active');
+      refreshRecoveryCodeOutputs();
       adminModeLoginOverlay.classList.remove('active');
     }
 
@@ -1087,13 +1189,7 @@
     });
 
     resetEntryPwBtn.addEventListener('click', () => {
-      if (!confirm('기본화면 진입 비밀번호를 기본값 1234로 복구할까요?')) return;
-      localStorage.removeItem(ENTRY_PASSWORD_KEY);
-      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
-      currentEntryPw.value = '';
-      newEntryPw.value = '';
-      newEntryPw2.value = '';
-      setAdminStatus('기본화면 진입 비밀번호가 1234로 복구되었습니다.');
+      createAndShowRecoveryCode('entry');
     });
 
     changeModePwBtn.addEventListener('click', () => {
@@ -1108,15 +1204,7 @@
     });
 
     resetModePwBtn.addEventListener('click', () => {
-      if (!confirm('관리자 모드 비밀번호를 기본값 4321로 복구할까요?')) return;
-      localStorage.removeItem(ADMIN_MODE_PASSWORD_KEY);
-      if (!suppressFirebasePasswordSave && typeof savePasswordsToFirebase === 'function') savePasswordsToFirebase().catch(() => {});
-      currentModePw.value = '';
-      newModePw.value = '';
-      newModePw2.value = '';
-      sessionStorage.removeItem(ADMIN_MODE_SESSION_KEY);
-      adminPanel.classList.remove('active');
-      setAdminStatus('관리자 모드 비밀번호가 4321로 복구되었습니다. 관리자 모드는 다시 로그인해야 합니다.');
+      createAndShowRecoveryCode('admin');
     });
 
     clearSessionBtn.addEventListener('click', () => {
@@ -1171,6 +1259,15 @@ const firebaseConfig = {
     let firebasePasswordsLoaded = false;
     let firebaseInitStarted = false;
     let firebaseProgramStateInitialWriteDone = false;
+    const FIREBASE_CLIENT_ID = (() => {
+      const key = "excelTestDateFirebaseClientId";
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        localStorage.setItem(key, id);
+      }
+      return id;
+    })();
 
     window.setTimeout(() => initFirebase(), 0);
 
@@ -1270,12 +1367,13 @@ const firebaseConfig = {
         }
 
         if (!firebaseReady || !firebaseDb) {
+          setFirebaseStatus("warn", "Firebase 준비 실패: 로컬 비밀번호로 확인합니다.");
           return false;
         }
 
         const snapshot = await withTimeout(
           firebaseDb.ref(`${FIREBASE_ROOT_PATH}/passwords`).once("value"),
-          2000,
+          5000,
           null
         );
 
@@ -1286,22 +1384,33 @@ const firebaseConfig = {
 
         const data = snapshot.val();
 
+        // Firebase에 값이 없을 때만 현재 로컬 기본값을 최초 생성한다.
+        // 이미 값이 있으면 절대 로컬 기본값으로 덮어쓰지 않는다.
         if (!data) {
-          await withTimeout(savePasswordsToFirebase(), 1500, false);
+          await withTimeout(savePasswordsToFirebase(), 3000, false);
           firebasePasswordsLoaded = true;
           return true;
         }
 
         suppressFirebasePasswordSave = true;
 
-        if (typeof data.entryPassword === "string" && data.entryPassword.length > 0) {
-          localStorage.setItem(ENTRY_PASSWORD_KEY, data.entryPassword);
+        if (typeof data.entryPassword === "string") {
+          localStorage.setItem(ENTRY_PASSWORD_KEY, data.entryPassword || ENTRY_PASSWORD_DEFAULT);
         }
 
-        if (typeof data.adminModePassword === "string" && data.adminModePassword.length > 0) {
-          localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, data.adminModePassword);
+        if (typeof data.adminModePassword === "string") {
+          localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, data.adminModePassword || ADMIN_MODE_PASSWORD_DEFAULT);
         }
 
+        if (typeof data.entryRecoveryCode === "string") {
+          localStorage.setItem(ENTRY_RECOVERY_CODE_KEY, data.entryRecoveryCode);
+        }
+
+        if (typeof data.adminModeRecoveryCode === "string") {
+          localStorage.setItem(ADMIN_MODE_RECOVERY_CODE_KEY, data.adminModeRecoveryCode);
+        }
+
+        refreshRecoveryCodeOutputs();
         suppressFirebasePasswordSave = false;
         firebasePasswordsLoaded = true;
         setFirebaseStatus("ok", "Firebase 비밀번호 불러오기 완료");
@@ -1309,7 +1418,7 @@ const firebaseConfig = {
       } catch (error) {
         suppressFirebasePasswordSave = false;
         console.error(error);
-        setFirebaseStatus("warn", "Firebase 비밀번호 불러오기 실패: 로컬 비밀번호로 확인합니다.");
+        setFirebaseStatus("warn", "Firebase 비밀번호 불러오기 실패: " + error.message);
         return false;
       }
     }
@@ -1326,7 +1435,10 @@ const firebaseConfig = {
       const payload = {
         entryPassword: getEntryPassword(),
         adminModePassword: getAdminModePassword(),
-        updatedAt: new Date().toISOString()
+        entryRecoveryCode: getEntryRecoveryCode(),
+        adminModeRecoveryCode: getAdminModeRecoveryCode(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: FIREBASE_CLIENT_ID
       };
 
       try {
@@ -1350,20 +1462,30 @@ const firebaseConfig = {
         const data = snapshot.val();
 
         if (!data) {
+          // 빈 DB일 때만 최초 기본값을 생성한다.
           savePasswordsToFirebase().catch(() => {});
           return;
         }
 
         suppressFirebasePasswordSave = true;
 
-        if (typeof data.entryPassword === "string" && data.entryPassword.length > 0) {
-          localStorage.setItem(ENTRY_PASSWORD_KEY, data.entryPassword);
+        if (typeof data.entryPassword === "string") {
+          localStorage.setItem(ENTRY_PASSWORD_KEY, data.entryPassword || ENTRY_PASSWORD_DEFAULT);
         }
 
-        if (typeof data.adminModePassword === "string" && data.adminModePassword.length > 0) {
-          localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, data.adminModePassword);
+        if (typeof data.adminModePassword === "string") {
+          localStorage.setItem(ADMIN_MODE_PASSWORD_KEY, data.adminModePassword || ADMIN_MODE_PASSWORD_DEFAULT);
         }
 
+        if (typeof data.entryRecoveryCode === "string") {
+          localStorage.setItem(ENTRY_RECOVERY_CODE_KEY, data.entryRecoveryCode);
+        }
+
+        if (typeof data.adminModeRecoveryCode === "string") {
+          localStorage.setItem(ADMIN_MODE_RECOVERY_CODE_KEY, data.adminModeRecoveryCode);
+        }
+
+        refreshRecoveryCodeOutputs();
         suppressFirebasePasswordSave = false;
         firebasePasswordsLoaded = true;
         setFirebaseStatus("ok", "Firebase 비밀번호 실시간 동기화 완료");
@@ -1403,6 +1525,7 @@ const firebaseConfig = {
     }
 
     window.addEventListener("DOMContentLoaded", () => {
+      refreshRecoveryCodeOutputs();
       bindProgramInputAutoSave();
       initFirebase();
       setTimeout(() => {
@@ -1445,21 +1568,18 @@ const firebaseConfig = {
 
     function getProgramStatePayload() {
       return {
-        targetDate: document.getElementById("targetDate")?.value || "",
-        startTime: document.getElementById("startTime")?.value || "",
-        intervalMin: document.getElementById("intervalMin")?.value || "",
-        intervalSec: document.getElementById("intervalSec")?.value || "",
-        saveOffsetMin: document.getElementById("saveOffsetMin")?.value || "",
-        saveOffsetSec: document.getElementById("saveOffsetSec")?.value || "",
-        dateFormat: document.getElementById("dateFormat")?.value || "",
+        targetDate: document.getElementById("targetDate")?.value ?? "",
+        startTime: document.getElementById("startTime")?.value ?? "",
+        intervalMin: document.getElementById("intervalMin")?.value ?? "",
+        intervalSec: document.getElementById("intervalSec")?.value ?? "",
+        saveOffsetMin: document.getElementById("saveOffsetMin")?.value ?? "",
+        saveOffsetSec: document.getElementById("saveOffsetSec")?.value ?? "",
+        dateFormat: document.getElementById("dateFormat")?.value ?? "",
         mode: getSelectedModeValue(),
-        noStart: document.getElementById("noStart")?.value || "",
-        noEnd: document.getElementById("noEnd")?.value || "",
-        lastDateTime: document.getElementById("lastDateTime")?.textContent || "",
-        creationTimePreview: document.getElementById("creationTimePreview")?.textContent || "",
-        lotNumberPreview: document.getElementById("lotNumberPreview")?.textContent || "",
-        previewCount: document.getElementById("previewCount")?.textContent || "",
-        updatedAt: new Date().toISOString()
+        noStart: document.getElementById("noStart")?.value ?? "",
+        noEnd: document.getElementById("noEnd")?.value ?? "",
+        updatedAt: new Date().toISOString(),
+        updatedBy: FIREBASE_CLIENT_ID
       };
     }
 
@@ -1470,8 +1590,8 @@ const firebaseConfig = {
 
       const setValue = (id, value) => {
         const el = document.getElementById(id);
-        if (!el || value === undefined || value === null || value === "") return;
-        el.value = value;
+        if (!el || value === undefined || value === null) return;
+        if (el.value !== String(value)) el.value = String(value);
       };
 
       setValue("targetDate", data.targetDate);
@@ -1486,22 +1606,15 @@ const firebaseConfig = {
 
       if (data.mode) setSelectedModeValue(data.mode);
 
-      const setText = (id, value) => {
-        const el = document.getElementById(id);
-        if (el && value !== undefined && value !== null && value !== "") el.textContent = value;
-      };
-
-      setText("lastDateTime", data.lastDateTime);
-      setText("creationTimePreview", data.creationTimePreview);
-      setText("lotNumberPreview", data.lotNumberPreview);
-      setText("previewCount", data.previewCount);
-
       if (typeof updateDateFormatLabels === "function") {
         updateDateFormatLabels();
       }
 
-      suppressProgramStateSave = false;
-      setFirebaseStatus("ok", "Firebase 실시간 동기화 적용됨");
+      setTimeout(() => {
+        suppressProgramStateSave = false;
+      }, 0);
+
+      setFirebaseStatus("ok", "Firebase 기본 화면 값 실시간 동기화 적용됨");
     }
 
     function bindFirebaseProgramStateSync() {
@@ -1514,6 +1627,7 @@ const firebaseConfig = {
         const data = snapshot.val();
 
         if (!data) {
+          // Firebase가 완전히 비어 있을 때만 현재 기본 화면 값을 최초 등록한다.
           if (!firebaseProgramStateInitialWriteDone) {
             firebaseProgramStateInitialWriteDone = true;
             saveProgramStateToFirebase().catch(() => {});
@@ -1525,9 +1639,9 @@ const firebaseConfig = {
       }, error => {
         console.error(error);
         if (typeof setFirebaseStatus === "function") {
-          setFirebaseStatus("warn", "Firebase 실시간 읽기 실패: " + error.message);
+          setFirebaseStatus("warn", "Firebase 기본 화면 값 읽기 실패: " + error.message);
         }
-        if (workStatus) setStatus(workStatus, "warn", "Firebase 실시간 읽기 실패: " + error.message);
+        if (workStatus) setStatus(workStatus, "warn", "Firebase 기본 화면 값 읽기 실패: " + error.message);
       });
     }
 
