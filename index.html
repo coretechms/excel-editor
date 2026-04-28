@@ -574,8 +574,8 @@
 <body>
   <section id="loginScreen" class="login-screen">
     <div class="login-box">
-      <h2 class="login-title"><strong>(주)코아텍 비아이티</strong></h2>
-      <p class="login-desc">Test Date Edit</p>
+      <h2 class="login-title"><strong>(주)코아텍비아이티</strong></h2>
+      <p class="login-desc">Test Date Editor</p>
       <p class="login-desc">진입하려면 비밀번호를 입력하세요.</p>
 
       <div class="form-row">
@@ -717,6 +717,12 @@
           <div class="help">원본 파일은 변경하지 않습니다. <strong>권장 형식은 .xlsx 입니다.</strong></div>
         </div>
 
+        <div class="form-row">
+          <label for="sheetProtectPassword">시트 보호 비밀번호</label>
+          <input id="sheetProtectPassword" type="text" autocomplete="off" placeholder="보호된 시트 비밀번호 입력" />
+          <div class="help">보호된 시트는 위 비번으로 풀고 수정한 뒤 같은 비번 으로 잠급니다.[CINPHOWN]</div>
+        </div>
+
         <div class="status" id="fileStatus">아직 파일이 선택되지 않았습니다.</div>
       </div>
 
@@ -740,17 +746,26 @@
 
         <div class="two-col">
           <div class="form-row">
-            <label>증가 간격 (1개 연마 소요시간)</label>
+            <label>랜덤 증가 범위 1 연마 소요시간</label>
             <div class="interval-grid">
               <div>
-                <input id="intervalMin" type="number" min="0" step="1" value="0" inputmode="numeric" />
-                <div class="help">분</div>
+                <input id="intervalMinFrom" type="number" min="0" step="1" value="0" inputmode="numeric" />
+                <div class="help">시작 분</div>
               </div>
               <div>
-                <input id="intervalSec" type="number" min="0" max="59" step="1" value="7" inputmode="numeric" />
-                <div class="help">초</div>
+                <input id="intervalSecFrom" type="number" min="0" max="59" step="1" value="7" inputmode="numeric" />
+                <div class="help">시작 초</div>
+              </div>
+              <div>
+                <input id="intervalMinTo" type="number" min="0" step="1" value="0" inputmode="numeric" />
+                <div class="help">끝 분</div>
+              </div>
+              <div>
+                <input id="intervalSecTo" type="number" min="0" max="59" step="1" value="7" inputmode="numeric" />
+                <div class="help">끝 초</div>
               </div>
             </div>
+            <div class="help">증가 시간을 범위 에서 랜덤 적용합니다.</div>
           </div>
 
           <div class="form-row">
@@ -759,7 +774,7 @@
               <option value="slash" id="formatSlashOption" selected>2026/04/29 08:30</option>
               <option value="dash" id="formatDashOption">2026-04-29 08:30</option>
             </select>
-            <div class="help">표시 형식은 화면 예시용이며, 실제 변환은 시작 시간 기준으로 저장됩니다.</div>
+            <div class="help">표시 형식은 화면 예시용입니다.</div>
           </div>
         </div>
 
@@ -770,13 +785,12 @@
           <div class="interval-grid">
             <div>
               <input id="saveOffsetMin" type="number" min="0" step="1" value="2" inputmode="numeric" />
-              <div class="help">최종항목 시간보다 늦게 적용할 [ 분 ]</div>
+              <div class="help">파일에 적용할 시간차 간격 [ 분 ]</div>
             </div>
             <div>
               <input id="saveOffsetSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" />
               <div class="help">[ 초 ]</div>
             </div>
-          </div>
           </div>
         </div>
       </div>
@@ -1240,12 +1254,13 @@ let selectedFile = null;
     // 아래 값을 Firebase 콘솔의 웹 앱 설정값으로 교체하세요.
     // databaseURL은 Realtime Database URL을 반드시 입력해야 합니다.
 const firebaseConfig = {
-  apiKey: "AIzaSyDGs5tNxsV8wwDcqWkeLZ7iiML3cb2SAwU",
-  authDomain: "excel-edit-e9b53.firebaseapp.com",
-  projectId: "excel-edit-e9b53",
-  storageBucket: "excel-edit-e9b53.firebasestorage.app",
-  messagingSenderId: "300916521245",
-  appId: "1:300916521245:web:dd53b153813652256bc9f4"
+  apiKey: "AIzaSyCaQXcOrb9Rows4-1SofyWGFVaSijMVgbI",
+  authDomain: "excel-editor-ddd20.firebaseapp.com",
+  databaseURL: "https://excel-editor-ddd20-default-rtdb.firebaseio.com",
+  projectId: "excel-editor-ddd20",
+  storageBucket: "excel-editor-ddd20.firebasestorage.app",
+  messagingSenderId: "711021684436",
+  appId: "1:711021684436:web:9742579632f1b09aaafd41"
 };
 
     const FIREBASE_ROOT_PATH = "excelTestDateEditor";
@@ -1569,10 +1584,13 @@ const firebaseConfig = {
       return {
         targetDate: document.getElementById("targetDate")?.value ?? "",
         startTime: document.getElementById("startTime")?.value ?? "",
-        intervalMin: document.getElementById("intervalMin")?.value ?? "",
-        intervalSec: document.getElementById("intervalSec")?.value ?? "",
+        intervalMinFrom: document.getElementById("intervalMinFrom")?.value ?? "",
+        intervalSecFrom: document.getElementById("intervalSecFrom")?.value ?? "",
+        intervalMinTo: document.getElementById("intervalMinTo")?.value ?? "",
+        intervalSecTo: document.getElementById("intervalSecTo")?.value ?? "",
         saveOffsetMin: document.getElementById("saveOffsetMin")?.value ?? "",
         saveOffsetSec: document.getElementById("saveOffsetSec")?.value ?? "",
+        sheetProtectPassword: document.getElementById("sheetProtectPassword")?.value ?? "",
         dateFormat: document.getElementById("dateFormat")?.value ?? "",
         mode: getSelectedModeValue(),
         noStart: document.getElementById("noStart")?.value ?? "",
@@ -1595,10 +1613,13 @@ const firebaseConfig = {
 
       setValue("targetDate", data.targetDate);
       setValue("startTime", data.startTime);
-      setValue("intervalMin", data.intervalMin);
-      setValue("intervalSec", data.intervalSec);
+      setValue("intervalMinFrom", data.intervalMinFrom ?? data.intervalMin);
+      setValue("intervalSecFrom", data.intervalSecFrom ?? data.intervalSec);
+      setValue("intervalMinTo", data.intervalMinTo ?? data.intervalMin);
+      setValue("intervalSecTo", data.intervalSecTo ?? data.intervalSec);
       setValue("saveOffsetMin", data.saveOffsetMin);
       setValue("saveOffsetSec", data.saveOffsetSec);
+      setValue("sheetProtectPassword", data.sheetProtectPassword);
       setValue("dateFormat", data.dateFormat);
       setValue("noStart", data.noStart);
       setValue("noEnd", data.noEnd);
@@ -1659,10 +1680,13 @@ const firebaseConfig = {
       const ids = [
         "targetDate",
         "startTime",
-        "intervalMin",
-        "intervalSec",
+        "intervalMinFrom",
+        "intervalSecFrom",
+        "intervalMinTo",
+        "intervalSecTo",
         "saveOffsetMin",
         "saveOffsetSec",
+        "sheetProtectPassword",
         "dateFormat",
         "noStart",
         "noEnd"
@@ -1703,10 +1727,13 @@ const firebaseConfig = {
       return {
         date: document.getElementById('targetDate').value,
         time: document.getElementById('startTime').value,
-        intervalMin: Math.max(0, Number(document.getElementById('intervalMin').value) || 0),
-        intervalSec: Math.min(59, Math.max(0, Number(document.getElementById('intervalSec').value) || 0)),
+        intervalMinFrom: Math.max(0, Number(document.getElementById('intervalMinFrom')?.value) || 0),
+        intervalSecFrom: Math.min(59, Math.max(0, Number(document.getElementById('intervalSecFrom')?.value) || 0)),
+        intervalMinTo: Math.max(0, Number(document.getElementById('intervalMinTo')?.value) || 0),
+        intervalSecTo: Math.min(59, Math.max(0, Number(document.getElementById('intervalSecTo')?.value) || 0)),
         saveOffsetMin: Math.max(0, Number(document.getElementById('saveOffsetMin')?.value) || 0),
         saveOffsetSec: Math.min(59, Math.max(0, Number(document.getElementById('saveOffsetSec')?.value) || 0)),
+        sheetProtectPassword: document.getElementById('sheetProtectPassword')?.value || '',
         format: document.getElementById('dateFormat').value,
         mode,
         noStart: document.getElementById('noStart').value.trim(),
@@ -1914,14 +1941,54 @@ const firebaseConfig = {
       return n >= Math.min(a, b) && n <= Math.max(a, b);
     }
 
+    function getRandomIntervalRangeSeconds(settings) {
+      const fromSeconds = (settings.intervalMinFrom * 60) + settings.intervalSecFrom;
+      const toSeconds = (settings.intervalMinTo * 60) + settings.intervalSecTo;
+      return {
+        min: Math.min(fromSeconds, toSeconds),
+        max: Math.max(fromSeconds, toSeconds)
+      };
+    }
+
+    function hashStringToSeed(text) {
+      let hash = 2166136261;
+      const str = String(text || '');
+      for (let i = 0; i < str.length; i += 1) {
+        hash ^= str.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    }
+
+    function deterministicRandomInt(min, max, seedText) {
+      if (max <= min) return min;
+      let seed = hashStringToSeed(seedText);
+      seed = Math.imul(seed ^ (seed >>> 15), 2246822507) >>> 0;
+      seed = Math.imul(seed ^ (seed >>> 13), 3266489909) >>> 0;
+      seed = (seed ^ (seed >>> 16)) >>> 0;
+      return min + (seed % (max - min + 1));
+    }
+
+    function getRandomAccumulatedSeconds(settings, changedIndex) {
+      const range = getRandomIntervalRangeSeconds(settings);
+      let totalSeconds = 0;
+      const seedBase = [settings.date, settings.time, settings.noStart, settings.noEnd, settings.mode, range.min, range.max].join('|');
+
+      for (let step = 1; step <= changedIndex; step += 1) {
+        totalSeconds += deterministicRandomInt(range.min, range.max, `${seedBase}|${step}`);
+      }
+
+      return totalSeconds;
+    }
+
     function buildNewDateText(item, settings, changedIndex) {
       // 데이터 변환 기준:
       // 1) 표시 형식 선택값은 무시
       // 2) 변경 날짜 + 시작 시간을 기준으로 계산
-      // 3) 증가 간격은 분+초 단위로 누적
-      // 4) 출력/저장은 항상 YYYY/MM/DD HH:MM
-      const intervalSeconds = (settings.intervalMin * 60) + settings.intervalSec;
-      const addSeconds = intervalSeconds * changedIndex;
+      // 3) 증가 간격은 설정한 최소~최대 범위에서 항목별 랜덤값을 누적
+      // 4) 미리보기와 변경 실행 결과가 같도록 같은 설정에서는 동일한 랜덤 시퀀스 사용
+      // 5) 출력/저장은 항상 YYYY/MM/DD HH:MM
+      const addSeconds = getRandomAccumulatedSeconds(settings, changedIndex);
 
       const baseDate = settings.date || oldDateToInputDate(item.oldDate);
       const baseTime = normalizeTime(settings.time);
@@ -2290,6 +2357,84 @@ const firebaseConfig = {
       return `${base}_수정본.xlsx`;
     }
 
+
+    function getSheetProtectionModel(worksheet) {
+      return worksheet?.model?.sheetProtection || worksheet?.protection || null;
+    }
+
+    function isWorksheetProtected(worksheet) {
+      const protection = getSheetProtectionModel(worksheet);
+      return !!(protection && protection.sheet);
+    }
+
+    function buildSheetProtectionOptions(protection) {
+      if (!protection) return {};
+      const optionKeys = [
+        "selectLockedCells",
+        "selectUnlockedCells",
+        "formatCells",
+        "formatColumns",
+        "formatRows",
+        "insertColumns",
+        "insertRows",
+        "insertHyperlinks",
+        "deleteColumns",
+        "deleteRows",
+        "sort",
+        "autoFilter",
+        "pivotTables"
+      ];
+      const options = {};
+      optionKeys.forEach(key => {
+        if (Object.prototype.hasOwnProperty.call(protection, key)) {
+          options[key] = protection[key];
+        }
+      });
+      return options;
+    }
+
+    async function unlockProtectedWorksheetsForEdit() {
+      if (!workbook) return [];
+
+      const sheetPassword = document.getElementById('sheetProtectPassword')?.value || '';
+      const protectedSheets = [];
+
+      workbook.eachSheet(worksheet => {
+        if (!isWorksheetProtected(worksheet)) return;
+        protectedSheets.push({
+          worksheet,
+          name: worksheet.name,
+          options: buildSheetProtectionOptions(getSheetProtectionModel(worksheet))
+        });
+      });
+
+      if (protectedSheets.length === 0) return [];
+
+      if (!sheetPassword) {
+        throw new Error(`보호된 시트 ${protectedSheets.length}개가 감지되었습니다. 시트 보호 비밀번호를 입력하세요.`);
+      }
+
+      for (const item of protectedSheets) {
+        if (typeof item.worksheet.unprotect === 'function') {
+          item.worksheet.unprotect();
+        }
+      }
+
+      return protectedSheets;
+    }
+
+    async function relockProtectedWorksheets(protectedSheets) {
+      if (!protectedSheets || protectedSheets.length === 0) return;
+      const sheetPassword = document.getElementById('sheetProtectPassword')?.value || '';
+      if (!sheetPassword) return;
+
+      for (const item of protectedSheets) {
+        if (typeof item.worksheet.protect === 'function') {
+          await item.worksheet.protect(sheetPassword, item.options || {});
+        }
+      }
+    }
+
     async function applyChanges() {
       if (!workbook || !selectedFile) {
         setStatus(workStatus, 'warn', '먼저 엑셀 파일을 선택하세요.');
@@ -2299,6 +2444,18 @@ const firebaseConfig = {
       const targets = getAllTargetRows();
       if (targets.length === 0) {
         setStatus(workStatus, 'warn', '변경 대상이 없습니다.');
+        return;
+      }
+
+      let protectedSheets = [];
+      try {
+        protectedSheets = await unlockProtectedWorksheetsForEdit();
+        if (protectedSheets.length > 0) {
+          setStatus(workStatus, '', `보호된 시트 ${protectedSheets.length}개 잠금 해제 후 수정 중입니다.`);
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus(workStatus, 'warn', error.message || '시트 보호 해제 중 오류가 발생했습니다.');
         return;
       }
 
@@ -2325,13 +2482,21 @@ const firebaseConfig = {
         lotCell.value = lotUpdate.after;
       }
 
+      try {
+        await relockProtectedWorksheets(protectedSheets);
+      } catch (error) {
+        console.error(error);
+        setStatus(workStatus, 'warn', '수정은 완료되었지만 시트 재잠금 중 오류가 발생했습니다: ' + (error.message || error));
+        return;
+      }
+
       const buffer = await workbook.xlsx.writeBuffer();
       changedBlob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
       changedFileName = makeOutputName(selectedFile.name);
       downloadBtn.disabled = false;
-      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}${lotUpdate ? ' / Lot Number 1건 수정됨' : ''}. 다운로드 버튼을 누르세요.`);
+      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}${lotUpdate ? ' / Lot Number 1건 수정됨' : ''}${protectedSheets.length > 0 ? ` / 보호 시트 ${protectedSheets.length}개 재잠금 완료` : ''}. 다운로드 버튼을 누르세요.`);
     }
 
     async function downloadChangedFile() {
@@ -2457,10 +2622,13 @@ const firebaseConfig = {
       changedFileName = '';
       document.getElementById('targetDate').value = '2026-04-29';
       document.getElementById('startTime').value = '08:30:00';
-      document.getElementById('intervalMin').value = '0';
-      document.getElementById('intervalSec').value = '0';
+      document.getElementById('intervalMinFrom').value = '0';
+      document.getElementById('intervalSecFrom').value = '7';
+      document.getElementById('intervalMinTo').value = '0';
+      document.getElementById('intervalSecTo').value = '7';
       if (document.getElementById('saveOffsetMin')) document.getElementById('saveOffsetMin').value = '2';
       if (document.getElementById('saveOffsetSec')) document.getElementById('saveOffsetSec').value = '0';
+      if (document.getElementById('sheetProtectPassword')) document.getElementById('sheetProtectPassword').value = '';
       document.getElementById('dateFormat').value = 'slash';
       updateDateFormatLabels();
       document.querySelector('input[name="mode"][value="all"]').checked = true;
