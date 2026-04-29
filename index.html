@@ -576,7 +576,7 @@
     <div class="login-box">
       <h2 class="login-title"><strong>(주)코아텍비아이티</strong></h2>
       <p class="login-desc">Test Date Editor</p>
-      <p class="login-desc"><storong>시작 하려면 비밀번호를 입력하세요.</storong></p>
+      <p class="login-desc">시작 하려면 비밀번호를 입력하세요.</p>
 
       <div class="form-row">
         <label for="adminPasswordInput">비밀번호</label>
@@ -720,7 +720,7 @@
         <div class="form-row">
           <label for="sheetProtectPassword">시트 보호 비밀번호</label>
           <input id="sheetProtectPassword" type="text" autocomplete="off" placeholder="보호된 시트 비밀번호 입력" />
-          <div class="help">보호된 시트는위  비밀번호로 풀고 수정후 같은 비밀번호로 다시 잠급니다 [CINPHOWN].</div>
+          <div class="help">위 비밀번호로 시트잠금을 풀고 수정후 같은 비밀번호로 다시 잠급니다 [CINPHOWN].</div>
         </div>
 
         <div class="status" id="fileStatus">아직 파일이 선택되지 않았습니다.</div>
@@ -753,7 +753,7 @@
                 <div class="help">시작 분</div>
               </div>
               <div>
-                <input id="intervalSecFrom" type="number" min="0" max="59" step="1" value="7" inputmode="numeric" />
+                <input id="intervalSecFrom" type="number" min="0" max="59" step="1" value="6" inputmode="numeric" />
                 <div class="help"><strong>시작 초</strong></div>
               </div>
               <div>
@@ -761,7 +761,7 @@
                 <div class="help">끝 분</div>
               </div>
               <div>
-                <input id="intervalSecTo" type="number" min="0" max="59" step="1" value="7" inputmode="numeric" />
+                <input id="intervalSecTo" type="number" min="0" max="59" step="1" value="15" inputmode="numeric" />
                 <div class="help"><strong>끝 초</strong></div>
               </div>
             </div>
@@ -771,8 +771,8 @@
           <div class="form-row">
             <label for="dateFormat">표시 형식</label>
             <select id="dateFormat">
-              <option value="slash" id="formatSlashOption" selected>2026/04/29</option>
-              <option value="dash" id="formatDashOption">2026-04-29</option>
+              <option value="slash" id="formatSlashOption" selected>2026/04/29 08:30</option>
+              <option value="dash" id="formatDashOption">2026-04-29 08:30</option>
             </select>
             <div class="help">표시 형식은 화면 예시용 입니다.</div>
           </div>
@@ -781,11 +781,11 @@
 
 
         <div class="form-row">
-          <label>파일 저장 시간 간격</label>
+          <label>파일 저장시간 간격</label>
           <div class="interval-grid">
             <div>
               <input id="saveOffsetMin" type="number" min="0" step="1" value="2" inputmode="numeric" />
-              <div class="help">마지막 항목 시간보다 늦게 저장 할 [ 분 ]</div>
+              <div class="help">최종항목 시간보다 늦게 저장 할 [ 분 ]</div>
             </div>
             <div>
               <input id="saveOffsetSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" />
@@ -833,17 +833,17 @@
         <div class="two-col">
           <div class="form-row">
             <label for="noStart">NO 시작</label>
-            <input id="noStart" type="text" value="0001" inputmode="numeric" />
+            <input id="noStart" type="text" value="000002" inputmode="numeric" />
           </div>
 
           <div class="form-row">
             <label for="noEnd">NO 끝</label>
-            <input id="noEnd" type="text" value="0305" inputmode="numeric" />
+            <input id="noEnd" type="text" value="000305" inputmode="numeric" />
           </div>
         </div>
 
         <div class="help">
-          “특정 NO 범위만 변경”을 선택했을 때만 적용됩니다. 예: 11 ~ 98
+          “특정 NO 범위만 변경”을 선택했을 때만 적용됩니다. 예: 000002 ~ 000305
         </div>
       </div>
 
@@ -2621,6 +2621,7 @@ const firebaseConfig = {
       changedBlob = null;
       changedFileName = '';
       document.getElementById('targetDate').value = '2026-04-29';
+      document.getElementById('startTime').value = '08:30:00';
       document.getElementById('intervalMinFrom').value = '0';
       document.getElementById('intervalSecFrom').value = '6';
       document.getElementById('intervalMinTo').value = '0';
@@ -2631,8 +2632,8 @@ const firebaseConfig = {
       document.getElementById('dateFormat').value = 'slash';
       updateDateFormatLabels();
       document.querySelector('input[name="mode"][value="all"]').checked = true;
-      document.getElementById('noStart').value = '0001';
-      document.getElementById('noEnd').value = '0305';
+      document.getElementById('noStart').value = '000002';
+      document.getElementById('noEnd').value = '000305';
       previewBox.innerHTML = '<div class="empty">엑셀 파일을 선택하면 Test Date 항목을 자동 분석합니다.</div>';
       previewCount.textContent = '0건';
       lastDateTime.textContent = '-';
