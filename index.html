@@ -697,7 +697,7 @@
 <section class="title-box">
       <h1>엑셀 Test Date 변경 도구</h1>
       <p class="desc">
-        엑셀 파일을 선택한 뒤 <strong>Test Date: YYYY/MM/DD HH:MM</strong> 원하는 날짜와 시간으로 변경하고 수정 파일을 다운로드합니다.
+        엑셀 파일을 선택한 뒤 원하는 날짜와 시간으로 변경하고 수정 파일을 다운로드합니다.
       </p>
       <p class="desc">
         <strong>(주)코아텍 비아이티</strong>
@@ -754,7 +754,7 @@
               </div>
               <div>
                 <input id="intervalSecFrom" type="number" min="0" max="59" step="1" value="7" inputmode="numeric" />
-                <div class="help">시작 초</div>
+                <div class="help"><storong>시작 초</storong></div>
               </div>
               <div>
                 <input id="intervalMinTo" type="number" min="0" step="1" value="0" inputmode="numeric" />
@@ -762,7 +762,7 @@
               </div>
               <div>
                 <input id="intervalSecTo" type="number" min="0" max="59" step="1" value="7" inputmode="numeric" />
-                <div class="help">끝 초</div>
+                <div class="help"><strong>끝 초</strong></div>
               </div>
             </div>
             <div class="help">증가 시간 범위 안에서 랜덤 적용합니다. 예: 6초 ~ 15초</div>
@@ -771,8 +771,8 @@
           <div class="form-row">
             <label for="dateFormat">표시 형식</label>
             <select id="dateFormat">
-              <option value="slash" id="formatSlashOption" selected>2026/04/29 08:30</option>
-              <option value="dash" id="formatDashOption">2026-04-29 08:30</option>
+              <option value="slash" id="formatSlashOption" selected>2026/04/29</option>
+              <option value="dash" id="formatDashOption">2026-04-29</option>
             </select>
             <div class="help">표시 형식은 화면 예시용 입니다.</div>
           </div>
@@ -781,11 +781,11 @@
 
 
         <div class="form-row">
-          <label>파일 저장시간 간격</label>
+          <label>파일 저장 시간 간격</label>
           <div class="interval-grid">
             <div>
               <input id="saveOffsetMin" type="number" min="0" step="1" value="2" inputmode="numeric" />
-              <div class="help">최종항목 시간보다 늦게 적용할 [ 분 ]</div>
+              <div class="help">마지막 항목 시간보다 늦게 저장 할 [ 분 ]</div>
             </div>
             <div>
               <input id="saveOffsetSec" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" />
@@ -843,7 +843,7 @@
         </div>
 
         <div class="help">
-          “특정 NO 범위만 변경”을 선택했을 때만 적용됩니다. 예: 000002 ~ 000305
+          “특정 NO 범위만 변경”을 선택했을 때만 적용됩니다. 예: 11 ~ 98
         </div>
       </div>
 
