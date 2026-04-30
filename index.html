@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>엑셀 Test Date 변경 도구</title>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
   <style>
@@ -845,6 +846,43 @@
         <div class="help">
           “특정 NO 범위만 변경”을 선택했을 때만 적용됩니다. 예: 000002 ~ 000305
         </div>
+
+        <div class="section-divider"></div>
+
+        <div class="form-row">
+          <label>이미지 수량 조정</label>
+          <div class="two-col">
+            <div>
+              <input id="imageDetectedCount" type="text" readonly value="파일 선택 전" />
+              <div class="help">현재 이미지 있는 건수</div>
+            </div>
+            <div>
+              <input id="imageTargetCount" type="number" min="0" step="1" value="" inputmode="numeric" placeholder="목표 수량" />
+              <div class="help"><STRONG>삭제 / 추가할 이미지 수량</STRONG></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="radio-group">
+          <label class="radio-line">
+            <input id="imageCountAdjustEnabled" type="checkbox" />
+            [변경 실행] 시 이미지 수량을 지정 수량에 맞춤
+          </label>
+
+          <label class="radio-line">
+            <input id="emptyImageBlockRemoveEnabled" type="checkbox" checked />
+            비트 이미지 없는 폼 그룹 삭제
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button class="btn-sub" type="button" id="imageCountDetectBtn">이미지 수량 확인</button>
+        </div>
+
+        <div class="help" id="imageCountHelp">엑셀 파일을 선택하면 ImageAnalysis 시트의 이미지 수를 자동 확인합니다.</div>
+          <div class="help"><strong>NO. 연동:</strong> ImageAnalysis는 NO. 000001부터 연번으로 재정렬되고, DataAnalysis의 HYPERLINK NO도 같은 번호로 자동 연동됩니다.</div>
+          <div class="help"><strong>수량 지정:</strong> 목표 수량보다 많으면 이후 양식 전체를 삭제하고, 부족하면 마지막 이미지 이전의 정상 이미지 양식을 통째로 복사해 ImageAnalysis/DataAnalysis를 같은 수량으로 추가합니다.</div>
+          <div class="help"><strong>빈 이미지 폼 삭제:</strong> 추가/삭제 전 Inspection Image 영역에 실제 이미지가 없는 ImageAnalysis 폼 그룹은 양식 전체를 삭제하고 DataAnalysis 연결 NO 행도 함께 삭제합니다.</div>
       </div>
 
       <div class="card full">
@@ -862,7 +900,7 @@
           <div class="empty">엑셀 파일을 선택하면 Test Date 항목을 자동 분석합니다.</div>
         </div>
         <div class="button-row">
-          <button class="btn-sub" type="button" id="previewBtn">미리보기 생성</button>
+          <button class="btn-sub" type="button" id="previewBtn">미리보기</button>
           <button class="btn-primary" type="button" id="convertBtn">변경 실행</button>
           <button class="btn-sub" type="button" id="downloadBtn" disabled>수정된 엑셀 저장 위치 선택</button>
           <button class="btn-danger" type="button" id="resetBtn">초기화</button>
@@ -907,6 +945,12 @@
     const convertBtn = document.getElementById('convertBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const resetBtn = document.getElementById('resetBtn');
+    const imageDetectedCountInput = document.getElementById('imageDetectedCount');
+    const imageTargetCountInput = document.getElementById('imageTargetCount');
+    const imageCountAdjustEnabled = document.getElementById('imageCountAdjustEnabled');
+    const imageCountDetectBtn = document.getElementById('imageCountDetectBtn');
+    const imageCountHelp = document.getElementById('imageCountHelp');
+    const emptyImageBlockRemoveEnabled = document.getElementById('emptyImageBlockRemoveEnabled');
 
 
     const ENTRY_PASSWORD_DEFAULT = '1234';
@@ -1595,6 +1639,9 @@ const firebaseConfig = {
         mode: getSelectedModeValue(),
         noStart: document.getElementById("noStart")?.value ?? "",
         noEnd: document.getElementById("noEnd")?.value ?? "",
+        imageTargetCount: document.getElementById("imageTargetCount")?.value ?? "",
+        imageCountAdjustEnabled: !!document.getElementById("imageCountAdjustEnabled")?.checked,
+        emptyImageBlockRemoveEnabled: !!document.getElementById("emptyImageBlockRemoveEnabled")?.checked,
         updatedAt: new Date().toISOString(),
         updatedBy: FIREBASE_CLIENT_ID
       };
@@ -1623,6 +1670,9 @@ const firebaseConfig = {
       setValue("dateFormat", data.dateFormat);
       setValue("noStart", data.noStart);
       setValue("noEnd", data.noEnd);
+      setValue("imageTargetCount", data.imageTargetCount);
+      if (imageCountAdjustEnabled && typeof data.imageCountAdjustEnabled === 'boolean') imageCountAdjustEnabled.checked = data.imageCountAdjustEnabled;
+      if (emptyImageBlockRemoveEnabled && typeof data.emptyImageBlockRemoveEnabled === 'boolean') emptyImageBlockRemoveEnabled.checked = data.emptyImageBlockRemoveEnabled;
 
       if (data.mode) setSelectedModeValue(data.mode);
 
@@ -1689,7 +1739,8 @@ const firebaseConfig = {
         "sheetProtectPassword",
         "dateFormat",
         "noStart",
-        "noEnd"
+        "noEnd",
+        "imageTargetCount"
       ];
 
       ids.forEach(id => {
@@ -1709,6 +1760,14 @@ const firebaseConfig = {
         radio.addEventListener("change", saveProgramStateToFirebaseDebounced);
       });
 
+      if (imageCountAdjustEnabled) {
+        imageCountAdjustEnabled.addEventListener("change", saveProgramStateToFirebaseDebounced);
+      }
+
+      if (emptyImageBlockRemoveEnabled) {
+        emptyImageBlockRemoveEnabled.addEventListener("change", saveProgramStateToFirebaseDebounced);
+      }
+
       ["previewBtn", "convertBtn", "downloadBtn", "resetBtn"].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.addEventListener("click", () => {
@@ -1720,6 +1779,143 @@ const firebaseConfig = {
     function setStatus(el, type, text) {
       el.className = type ? `status ${type}` : 'status';
       el.textContent = text;
+    }
+
+    function getWorksheetImagesSafe(worksheet) {
+      if (!worksheet) return [];
+      try {
+        if (typeof worksheet.getImages === 'function') return worksheet.getImages() || [];
+      } catch (error) {
+        console.warn(error);
+      }
+      if (Array.isArray(worksheet._media)) return worksheet._media.filter(x => x && x.type === 'image');
+      if (worksheet.model && Array.isArray(worksheet.model.media)) return worksheet.model.media.filter(x => x && x.type === 'image');
+      return [];
+    }
+
+    function getImageAnchorRow(image) {
+      const tl = image?.range?.tl || image?.range?.model?.tl || {};
+      return Number.isFinite(Number(tl.nativeRow)) ? Number(tl.nativeRow) : Number(tl.row ?? 0);
+    }
+
+    function getImageAnchorCol(image) {
+      const tl = image?.range?.tl || image?.range?.model?.tl || {};
+      return Number.isFinite(Number(tl.nativeCol)) ? Number(tl.nativeCol) : Number(tl.col ?? 0);
+    }
+
+    function getImageAnchorEndRow(image) {
+      const br = image?.range?.br || image?.range?.model?.br || {};
+      return Number.isFinite(Number(br.nativeRow)) ? Number(br.nativeRow) : Number(br.row ?? getImageAnchorRow(image));
+    }
+
+    function findMainImageWorksheet() {
+      if (!workbook) return null;
+      const preferred = workbook.getWorksheet('ImageAnalysis');
+      if (preferred && getWorksheetImagesSafe(preferred).length > 0) return preferred;
+
+      let best = null;
+      let bestCount = 0;
+      workbook.eachSheet(worksheet => {
+        const count = getWorksheetImagesSafe(worksheet).length;
+        if (count > bestCount) {
+          best = worksheet;
+          bestCount = count;
+        }
+      });
+      return best;
+    }
+
+    function getSortedMainImages() {
+      const worksheet = findMainImageWorksheet();
+      if (!worksheet) return { worksheet: null, images: [] };
+      const images = getWorksheetImagesSafe(worksheet).slice().sort((a, b) => {
+        const rowDiff = getImageAnchorRow(a) - getImageAnchorRow(b);
+        if (rowDiff !== 0) return rowDiff;
+        return getImageAnchorCol(a) - getImageAnchorCol(b);
+      });
+      return { worksheet, images };
+    }
+
+    function updateImageCountStatus() {
+      const { worksheet, images } = getSortedMainImages();
+      const count = images.length;
+      if (imageDetectedCountInput) imageDetectedCountInput.value = worksheet ? `${count}건 (${worksheet.name})` : '0건';
+      if (imageTargetCountInput && worksheet && !imageTargetCountInput.value) imageTargetCountInput.value = String(count);
+      if (imageCountHelp) {
+        imageCountHelp.textContent = worksheet
+          ? `현재 ${worksheet.name} 시트 기준 이미지 ${count}건을 감지했습니다. 목표 수량을 입력하고 체크하면 변경 실행 시 이미지 앵커를 맞춥니다.`
+          : '이미지 시트를 찾지 못했습니다.';
+      }
+      return count;
+    }
+
+    function cloneImageRangeByRow(image, newTopRow) {
+      const tl = image?.range?.tl || image?.range?.model?.tl || {};
+      const br = image?.range?.br || image?.range?.model?.br || {};
+      const oldTop = getImageAnchorRow(image);
+      const oldBottom = getImageAnchorEndRow(image);
+      const heightRows = Math.max(1, oldBottom - oldTop);
+      const topCol = Number.isFinite(Number(tl.nativeCol)) ? Number(tl.nativeCol) : Number(tl.col ?? 0);
+      const bottomCol = Number.isFinite(Number(br.nativeCol)) ? Number(br.nativeCol) : Number(br.col ?? topCol + 1);
+
+      return {
+        tl: { col: topCol, row: newTopRow },
+        br: { col: bottomCol, row: newTopRow + heightRows },
+        editAs: 'absolute'
+      };
+    }
+
+    function getImageRowStep(images) {
+      if (!images || images.length < 2) return 30;
+      const a = getImageAnchorRow(images[0]);
+      const b = getImageAnchorRow(images[1]);
+      const diff = b - a;
+      return diff > 0 ? diff : 30;
+    }
+
+    function adjustMainImageCountIfEnabled() {
+      if (!imageCountAdjustEnabled || !imageCountAdjustEnabled.checked) return { changed: false, message: '' };
+      const target = Number(imageTargetCountInput?.value);
+      if (!Number.isFinite(target) || target < 0) {
+        throw new Error('이미지 목표 수량을 0 이상의 숫자로 입력하세요.');
+      }
+
+      const { worksheet, images } = getSortedMainImages();
+      if (!worksheet) throw new Error('이미지 수량을 조정할 시트를 찾지 못했습니다.');
+
+      const current = images.length;
+      const targetCount = Math.floor(target);
+      if (current === targetCount) {
+        return { changed: false, message: `이미지 수량 유지: ${current}건` };
+      }
+
+      if (targetCount < current) {
+        const keepSet = new Set(images.slice(0, targetCount));
+        if (Array.isArray(worksheet._media)) worksheet._media = worksheet._media.filter(item => item.type !== 'image' || keepSet.has(item));
+        if (worksheet.model && Array.isArray(worksheet.model.media)) worksheet.model.media = worksheet.model.media.filter(item => item.type !== 'image' || keepSet.has(item));
+        return { changed: true, message: `이미지 ${current}건 → ${targetCount}건으로 삭제 조정` };
+      }
+
+      if (current === 0) {
+        throw new Error('기준 이미지가 없어 이미지를 추가할 수 없습니다. 먼저 이미지가 포함된 엑셀을 선택하세요.');
+      }
+
+      const step = getImageRowStep(images);
+      let last = images[images.length - 1];
+      let lastRow = getImageAnchorRow(last);
+      for (let i = current; i < targetCount; i += 1) {
+        const newRow = lastRow + step;
+        const imageId = last.imageId ?? last.image?.imageId;
+        if (imageId === undefined || typeof worksheet.addImage !== 'function') {
+          throw new Error('현재 ExcelJS 이미지 구조에서 이미지 추가 기능을 사용할 수 없습니다.');
+        }
+        worksheet.addImage(imageId, cloneImageRangeByRow(last, newRow));
+        const refreshed = getSortedMainImages();
+        last = refreshed.images[refreshed.images.length - 1] || last;
+        lastRow = newRow;
+      }
+
+      return { changed: true, message: `이미지 ${current}건 → ${targetCount}건으로 추가 조정` };
     }
 
     function getSettings() {
@@ -2382,7 +2578,9 @@ const firebaseConfig = {
         "deleteRows",
         "sort",
         "autoFilter",
-        "pivotTables"
+        "pivotTables",
+        "objects",
+        "scenarios"
       ];
       const options = {};
       optionKeys.forEach(key => {
@@ -2399,28 +2597,163 @@ const firebaseConfig = {
       const sheetPassword = document.getElementById('sheetProtectPassword')?.value || '';
       const protectedSheets = [];
 
+      const mustProtectSheetNames = new Set(['ImageAnalysis']);
+
       workbook.eachSheet(worksheet => {
-        if (!isWorksheetProtected(worksheet)) return;
+        const alreadyProtected = isWorksheetProtected(worksheet);
+        const mustProtect = mustProtectSheetNames.has(String(worksheet.name));
+        if (!alreadyProtected && !mustProtect) return;
         protectedSheets.push({
           worksheet,
           name: worksheet.name,
-          options: buildSheetProtectionOptions(getSheetProtectionModel(worksheet))
+          options: buildSheetProtectionOptions(getSheetProtectionModel(worksheet)),
+          wasProtected: alreadyProtected,
+          forcedProtection: mustProtect && !alreadyProtected
         });
       });
 
       if (protectedSheets.length === 0) return [];
 
       if (!sheetPassword) {
-        throw new Error(`보호된 시트 ${protectedSheets.length}개가 감지되었습니다. 시트 보호 비밀번호를 입력하세요.`);
+        throw new Error(`보호 대상 시트 ${protectedSheets.length}개가 감지되었습니다. 시트 보호 비밀번호를 입력하세요.`);
       }
 
       for (const item of protectedSheets) {
         if (typeof item.worksheet.unprotect === 'function') {
-          item.worksheet.unprotect();
+          // 시트 보호 해제는 1회만 실행한다.
+          try { item.worksheet.unprotect(sheetPassword); } catch (error) { try { item.worksheet.unprotect(); } catch (_) {} }
         }
       }
 
       return protectedSheets;
+    }
+
+    function lockWorksheetImagesForProtection(worksheet) {
+      if (!worksheet) return;
+
+      const images = getWorksheetImagesSafe(worksheet);
+      images.forEach(image => {
+        try {
+          // ExcelJS 객체 단계에서 이미지 앵커를 고정한다.
+          // 실제 Excel에서 클릭/이동/삭제 방지는 저장 직전 OOXML drawing lock 패치까지 함께 적용한다.
+          if (image.range) {
+            image.range.editAs = 'absolute';
+            image.range.locked = true;
+            image.range.protection = Object.assign({}, image.range.protection || {}, {
+              locked: true,
+              lockText: true
+            });
+          }
+          if (image.range?.model) {
+            image.range.model.editAs = 'absolute';
+            image.range.model.locked = true;
+            image.range.model.protection = Object.assign({}, image.range.model.protection || {}, {
+              locked: true,
+              lockText: true
+            });
+          }
+          image.locked = true;
+          if (image.model) image.model.locked = true;
+        } catch (error) {
+          console.warn(error);
+        }
+      });
+    }
+
+    async function patchXlsxDrawingLocks(buffer) {
+      // Excel에서 이미지가 보호되려면 2가지가 동시에 필요하다.
+      // 1) worksheet sheetProtection objects="1"
+      // 2) drawing anchor의 clientData fLocksWithSheet="1"
+      // ExcelJS는 2번 값을 안정적으로 저장하지 못해, 저장 직전 OOXML을 직접 보강한다.
+      // 셀 선택/하이퍼링크 클릭은 유지하고, 이미지/도형 객체 선택·이동·삭제만 막는다.
+      if (!window.JSZip) return buffer;
+
+      const setOrReplaceAttr = (tag, attrName, attrValue) => {
+        const re = new RegExp(`\\s${attrName}="[^"]*"`, 'i');
+        if (re.test(tag)) return tag.replace(re, ` ${attrName}="${attrValue}"`);
+        return tag.replace(/\/?\s*>$/, match => ` ${attrName}="${attrValue}"${match}`);
+      };
+
+      const patchLockTag = (inner, tagName, lockTagName, attrs) => {
+        const lockRe = new RegExp(`<a:${lockTagName}\\b[^>]*(?:/>|>[\\s\\S]*?<\\/a:${lockTagName}>)`, 'i');
+        if (lockRe.test(inner)) {
+          return inner.replace(lockRe, `<a:${lockTagName} ${attrs}/>`);
+        }
+        return `<a:${lockTagName} ${attrs}/>` + inner;
+      };
+
+      try {
+        const zip = await JSZip.loadAsync(buffer);
+
+        const drawingPaths = Object.keys(zip.files).filter(name => /^xl\/drawings\/drawing\d+\.xml$/i.test(name));
+        const picLockAttrs = 'noGrp="1" noSelect="1" noRot="1" noChangeAspect="1" noMove="1" noResize="1" noEditPoints="1" noAdjustHandles="1" noChangeShapeType="1" noCrop="1"';
+        const spLockAttrs = 'noGrp="1" noSelect="1" noMove="1" noResize="1" noEditPoints="1" noAdjustHandles="1" noChangeShapeType="1"';
+
+        for (const path of drawingPaths) {
+          let xml = await zip.file(path).async('string');
+
+          // 그림 잠금 속성 보강
+          xml = xml.replace(/<xdr:cNvPicPr\b([^>]*)\/>/g, `<xdr:cNvPicPr$1><a:picLocks ${picLockAttrs}/></xdr:cNvPicPr>`);
+          xml = xml.replace(/<xdr:cNvPicPr\b([^>]*)>([\s\S]*?)<\/xdr:cNvPicPr>/g, (match, attrs, inner) => {
+            return `<xdr:cNvPicPr${attrs}>${patchLockTag(inner, 'cNvPicPr', 'picLocks', picLockAttrs)}</xdr:cNvPicPr>`;
+          });
+
+          // 도형 잠금 속성 보강
+          xml = xml.replace(/<xdr:cNvSpPr\b([^>]*)\/>/g, `<xdr:cNvSpPr$1><a:spLocks ${spLockAttrs}/></xdr:cNvSpPr>`);
+          xml = xml.replace(/<xdr:cNvSpPr\b([^>]*)>([\s\S]*?)<\/xdr:cNvSpPr>/g, (match, attrs, inner) => {
+            return `<xdr:cNvSpPr${attrs}>${patchLockTag(inner, 'cNvSpPr', 'spLocks', spLockAttrs)}</xdr:cNvSpPr>`;
+          });
+
+          // 핵심: 이미지/도형이 시트 보호와 함께 잠기도록 clientData에 fLocksWithSheet="1" 설정
+          xml = xml.replace(/<xdr:clientData\b([^>]*)\/>/g, (match, attrs) => {
+            let tag = `<xdr:clientData${attrs}/>`;
+            tag = setOrReplaceAttr(tag, 'fLocksWithSheet', '1');
+            tag = setOrReplaceAttr(tag, 'fPrintsWithSheet', '1');
+            return tag;
+          });
+          xml = xml.replace(/<xdr:clientData\b([^>]*)>([\s\S]*?)<\/xdr:clientData>/g, (match, attrs, inner) => {
+            let openTag = `<xdr:clientData${attrs}>`;
+            openTag = setOrReplaceAttr(openTag, 'fLocksWithSheet', '1');
+            openTag = setOrReplaceAttr(openTag, 'fPrintsWithSheet', '1');
+            return `${openTag}${inner}</xdr:clientData>`;
+          });
+
+          // 혹시 clientData가 없는 앵커가 있으면 닫는 태그 직전에 삽입
+          xml = xml.replace(/(<xdr:(?:twoCellAnchor|oneCellAnchor|absoluteAnchor)\b[^>]*>[\s\S]*?)(<\/xdr:(?:twoCellAnchor|oneCellAnchor|absoluteAnchor)>)/g, (match, body, closeTag) => {
+            if (/<xdr:clientData\b/i.test(body)) return match;
+            return `${body}<xdr:clientData fLocksWithSheet="1" fPrintsWithSheet="1"/>${closeTag}`;
+          });
+
+          // 이동/크기 변경 방지를 위해 앵커 방식은 absolute로 고정
+          xml = xml.replace(/(<xdr:(?:twoCellAnchor|oneCellAnchor)\b[^>]*?)\seditAs="[^"]*"/g, '$1 editAs="absolute"');
+          xml = xml.replace(/<xdr:(twoCellAnchor|oneCellAnchor)\b(?![^>]*\seditAs=)([^>]*)>/g, '<xdr:$1 editAs="absolute"$2>');
+
+          zip.file(path, xml);
+        }
+
+        const worksheetPaths = Object.keys(zip.files).filter(name => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name));
+        for (const path of worksheetPaths) {
+          let xml = await zip.file(path).async('string');
+          if (/<sheetProtection\b/i.test(xml)) {
+            xml = xml.replace(/<sheetProtection\b([^>]*?)(\/)?>/i, (match, attrs, selfClose) => {
+              let tag = `<sheetProtection${attrs}${selfClose ? '/>' : '>'}`;
+              tag = setOrReplaceAttr(tag, 'sheet', '1');
+              tag = setOrReplaceAttr(tag, 'objects', '1');
+              tag = setOrReplaceAttr(tag, 'scenarios', '1');
+              // 0 = 선택 허용. 셀 선택/하이퍼링크 클릭을 유지한다.
+              tag = setOrReplaceAttr(tag, 'selectLockedCells', '0');
+              tag = setOrReplaceAttr(tag, 'selectUnlockedCells', '0');
+              return tag;
+            });
+          }
+          zip.file(path, xml);
+        }
+
+        return await zip.generateAsync({ type: 'arraybuffer' });
+      } catch (error) {
+        console.warn('이미지 잠금 XML 보강 실패:', error);
+        return buffer;
+      }
     }
 
     async function relockProtectedWorksheets(protectedSheets) {
@@ -2429,8 +2762,25 @@ const firebaseConfig = {
       if (!sheetPassword) return;
 
       for (const item of protectedSheets) {
+        lockWorksheetImagesForProtection(item.worksheet);
         if (typeof item.worksheet.protect === 'function') {
-          await item.worksheet.protect(sheetPassword, item.options || {});
+          const protectionOptions = Object.assign({}, item.options || {}, {
+            // 셀 선택과 하이퍼링크 클릭은 허용하고, 이미지/도형 객체만 보호한다.
+            selectLockedCells: true,
+            selectUnlockedCells: true,
+            objects: true,
+            scenarios: true,
+            formatCells: false,
+            formatColumns: false,
+            formatRows: false,
+            insertColumns: false,
+            insertRows: false,
+            deleteColumns: false,
+            deleteRows: false
+          });
+
+          // 시트 보호는 1회만 적용한다. 이미지/도형 객체는 objects:true로 보호한다.
+          await item.worksheet.protect(sheetPassword, protectionOptions);
         }
       }
     }
@@ -2482,6 +2832,17 @@ const firebaseConfig = {
         lotCell.value = lotUpdate.after;
       }
 
+      let imageAdjustResult = { changed: false, message: '' };
+      try {
+        imageAdjustResult = adjustMainImageCountIfEnabled();
+        if (imageAdjustResult.message && imageCountHelp) imageCountHelp.textContent = imageAdjustResult.message;
+        updateImageCountStatus();
+      } catch (error) {
+        console.error(error);
+        setStatus(workStatus, 'warn', error.message || '이미지 수량 조정 중 오류가 발생했습니다.');
+        return;
+      }
+
       try {
         await relockProtectedWorksheets(protectedSheets);
       } catch (error) {
@@ -2490,13 +2851,844 @@ const firebaseConfig = {
         return;
       }
 
-      const buffer = await workbook.xlsx.writeBuffer();
-      changedBlob = new Blob([buffer], {
+      const rawBuffer = await workbook.xlsx.writeBuffer();
+      const lockedBuffer = await patchXlsxDrawingLocks(rawBuffer);
+      changedBlob = new Blob([lockedBuffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
       changedFileName = makeOutputName(selectedFile.name);
       downloadBtn.disabled = false;
-      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}${lotUpdate ? ' / Lot Number 1건 수정됨' : ''}${protectedSheets.length > 0 ? ` / 보호 시트 ${protectedSheets.length}개 재잠금 완료` : ''}. 다운로드 버튼을 누르세요.`);
+      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}${lotUpdate ? ' / Lot Number 1건 수정됨' : ''}${imageAdjustResult.message ? ' / ' + imageAdjustResult.message : ''}${p10Update && p10Update.count !== null ? ' / DataAnalysis P10=' + p10Update.count : ''}${protectedSheets.length > 0 ? ` / 보호 시트 ${protectedSheets.length}개 재잠금 완료` : ''}. 다운로드 버튼을 누르세요.`);
+    }
+
+
+
+    // ==============================
+    // ImageAnalysis ↔ DataAnalysis NO 연동/행 수량 보정
+    // ==============================
+    function parseNoCellText(text) {
+      const m = String(text || '').match(/NO\.?\s*0*(\d+)/i);
+      if (!m) return null;
+      return Number(m[1]);
+    }
+
+    function formatNoText(index) {
+      return `NO. ${String(index).padStart(6, '0')}`;
+    }
+
+    function cloneCellForAppend(sourceCell, targetCell) {
+      if (!sourceCell || !targetCell) return;
+      targetCell.value = sourceCell.value;
+      targetCell.style = JSON.parse(JSON.stringify(sourceCell.style || {}));
+      targetCell.numFmt = sourceCell.numFmt;
+      targetCell.font = sourceCell.font ? JSON.parse(JSON.stringify(sourceCell.font)) : sourceCell.font;
+      targetCell.alignment = sourceCell.alignment ? JSON.parse(JSON.stringify(sourceCell.alignment)) : sourceCell.alignment;
+      targetCell.border = sourceCell.border ? JSON.parse(JSON.stringify(sourceCell.border)) : sourceCell.border;
+      targetCell.fill = sourceCell.fill ? JSON.parse(JSON.stringify(sourceCell.fill)) : sourceCell.fill;
+      targetCell.protection = sourceCell.protection ? JSON.parse(JSON.stringify(sourceCell.protection)) : sourceCell.protection;
+    }
+
+    function cloneCellStyleOnly(sourceCell, targetCell) {
+      if (!sourceCell || !targetCell) return;
+      targetCell.style = JSON.parse(JSON.stringify(sourceCell.style || {}));
+      targetCell.numFmt = sourceCell.numFmt;
+      targetCell.font = sourceCell.font ? JSON.parse(JSON.stringify(sourceCell.font)) : sourceCell.font;
+      targetCell.alignment = sourceCell.alignment ? JSON.parse(JSON.stringify(sourceCell.alignment)) : sourceCell.alignment;
+      targetCell.border = sourceCell.border ? JSON.parse(JSON.stringify(sourceCell.border)) : sourceCell.border;
+      targetCell.fill = sourceCell.fill ? JSON.parse(JSON.stringify(sourceCell.fill)) : sourceCell.fill;
+      targetCell.protection = sourceCell.protection ? JSON.parse(JSON.stringify(sourceCell.protection)) : sourceCell.protection;
+    }
+
+    function applyDataAnalysisNoRowPattern() {
+      const dataWs = workbook?.getWorksheet('DataAnalysis');
+      if (!dataWs) return { count: 0, message: 'DataAnalysis 시트를 찾지 못했습니다.' };
+
+      const dataNoRows = getDataAnalysisNoRows();
+      if (dataNoRows.length < 2) return { count: dataNoRows.length, message: 'DataAnalysis NO 행 패턴 기준이 부족합니다.' };
+
+      const patternRows = [dataWs.getRow(dataNoRows[0]), dataWs.getRow(dataNoRows[1])];
+      const maxCol = Math.max(dataWs.columnCount || 1, 30);
+
+      dataNoRows.forEach((rowNumber, index) => {
+        const targetRow = dataWs.getRow(rowNumber);
+        const patternRow = patternRows[index % 2];
+        if (patternRow.height) targetRow.height = patternRow.height;
+
+        for (let col = 1; col <= maxCol; col += 1) {
+          const targetCell = targetRow.getCell(col);
+          const originalValue = targetCell.value;
+          cloneCellStyleOnly(patternRow.getCell(col), targetCell);
+          targetCell.value = originalValue;
+        }
+        targetRow.commit && targetRow.commit();
+      });
+
+      return { count: dataNoRows.length, message: `DataAnalysis NO 행 배경색 패턴 ${dataNoRows.length}건 재적용` };
+    }
+
+    function copyRowBlock(worksheet, sourceStartRow, targetStartRow, rowCount) {
+      for (let offset = 0; offset < rowCount; offset += 1) {
+        const srcRow = worksheet.getRow(sourceStartRow + offset);
+        const dstRow = worksheet.getRow(targetStartRow + offset);
+        dstRow.height = srcRow.height;
+        for (let col = 1; col <= Math.max(worksheet.columnCount || 1, 20); col += 1) {
+          cloneCellForAppend(srcRow.getCell(col), dstRow.getCell(col));
+        }
+        dstRow.commit && dstRow.commit();
+      }
+    }
+
+    function isImageAnalysisNoLabel(text) {
+      const value = String(text || '').replace(/\s+/g, ' ').trim();
+      // ImageAnalysis의 빈 양식은 숫자가 빠진 "NO."만 남아 있을 수 있다.
+      // 수량 지정 삭제에서는 이 빈 NO 라벨도 하나의 폼 시작점으로 인식해야 한다.
+      return /^NO\.?\s*(?:0*\d+)?$/i.test(value);
+    }
+
+    function getImageAnalysisNoRows() {
+      const ws = workbook?.getWorksheet('ImageAnalysis');
+      if (!ws) return [];
+      const rows = [];
+      ws.eachRow({ includeEmpty: false }, row => {
+        const c = row.getCell(3); // C열 기준
+        const text = cellText(c);
+        const no = parseNoCellText(text);
+        if (no !== null || isImageAnalysisNoLabel(text)) rows.push(row.number);
+      });
+      rows.sort((a, b) => a - b);
+      return rows;
+    }
+
+    function getDataAnalysisNoRows() {
+      const ws = workbook?.getWorksheet('DataAnalysis');
+      if (!ws) return [];
+      const rows = [];
+      ws.eachRow({ includeEmpty: false }, row => {
+        const c = row.getCell(3); // C열 기준
+        const no = parseNoCellText(cellText(c));
+        if (no !== null) rows.push(row.number);
+      });
+      rows.sort((a, b) => a - b);
+      return rows;
+    }
+
+    function updateDataAnalysisP10NoCount() {
+      const ws = workbook?.getWorksheet('DataAnalysis');
+      if (!ws) return { count: null, message: 'DataAnalysis 시트를 찾지 못했습니다.' };
+
+      // DataAnalysis의 C열 NO. 00000# 연결 행 개수를 기준으로 P10 값을 갱신한다.
+      // 이미지 수량 조정/빈 양식 삭제 후에도 P10이 실제 NO 개수와 항상 같아지도록 한다.
+      const count = getDataAnalysisNoRows().length;
+      const cell = ws.getCell('P10');
+      cell.value = count;
+      cell.numFmt = '0';
+
+      return { count, message: `DataAnalysis P10 NO 카운트 ${count}건 반영` };
+    }
+
+    function inferImageBlockStep(noRows) {
+      if (!noRows || noRows.length < 2) return 30;
+      const diffs = [];
+      for (let i = 1; i < Math.min(noRows.length, 20); i += 1) {
+        const d = noRows[i] - noRows[i - 1];
+        if (d > 0) diffs.push(d);
+      }
+      if (!diffs.length) return 30;
+      diffs.sort((a, b) => a - b);
+      return diffs[Math.floor(diffs.length / 2)] || 30;
+    }
+
+    function rebuildDataAnalysisHyperlink(cell, index, imageTopRow, imageBottomRow) {
+      const display = formatNoText(index);
+      cell.value = {
+        formula: `HYPERLINK("#ImageAnalysis!B${imageTopRow}:O${imageBottomRow}", "${display}")`,
+        result: display
+      };
+    }
+
+    function renumberLinkedImageDataNo() {
+      if (!workbook) return { count: 0, message: '' };
+      const imageWs = workbook.getWorksheet('ImageAnalysis');
+      const dataWs = workbook.getWorksheet('DataAnalysis');
+      if (!imageWs || !dataWs) return { count: 0, message: 'ImageAnalysis 또는 DataAnalysis 시트를 찾지 못했습니다.' };
+
+      const imageNoRows = getImageAnalysisNoRows();
+      const dataNoRows = getDataAnalysisNoRows();
+      const count = Math.min(imageNoRows.length, dataNoRows.length || imageNoRows.length);
+      const step = inferImageBlockStep(imageNoRows);
+
+      for (let i = 0; i < count; i += 1) {
+        const noText = formatNoText(i + 1);
+        const imageRow = imageNoRows[i];
+        const imageTop = Math.max(1, imageRow - 1);
+        const imageBottom = imageTop + step - 2;
+
+        imageWs.getCell(imageRow, 3).value = noText;
+
+        if (dataNoRows[i]) {
+          rebuildDataAnalysisHyperlink(dataWs.getCell(dataNoRows[i], 3), i + 1, imageTop, imageBottom);
+        }
+      }
+
+      const patternResult = applyDataAnalysisNoRowPattern();
+
+      if (imageCountHelp) {
+        imageCountHelp.textContent = `NO 연동 완료: ImageAnalysis ${count}건 / DataAnalysis ${Math.min(dataNoRows.length, count)}건을 NO. 000001부터 재정렬했습니다. / ${patternResult.message}`;
+      }
+      return { count, message: `NO 연번 ${count}건 연동 완료 / ${patternResult.message}` };
+    }
+
+    function removeWorksheetImagesAfterCount(worksheet, targetCount) {
+      const sorted = getWorksheetImagesSafe(worksheet).slice().sort((a, b) => {
+        const rowDiff = getImageAnchorRow(a) - getImageAnchorRow(b);
+        if (rowDiff !== 0) return rowDiff;
+        return getImageAnchorCol(a) - getImageAnchorCol(b);
+      });
+      const keepSet = new Set(sorted.slice(0, targetCount));
+      if (Array.isArray(worksheet._media)) worksheet._media = worksheet._media.filter(item => item.type !== 'image' || keepSet.has(item));
+      if (worksheet.model && Array.isArray(worksheet.model.media)) worksheet.model.media = worksheet.model.media.filter(item => item.type !== 'image' || keepSet.has(item));
+    }
+
+    function getMergeRangeRowsFromAddress(address) {
+      const parts = String(address || '').split(':');
+      const rows = parts.map(part => {
+        const m = String(part).match(/\$?[A-Z]+\$?(\d+)/i);
+        return m ? Number(m[1]) : null;
+      }).filter(Number.isFinite);
+      if (!rows.length) return null;
+      return { start: Math.min(...rows), end: Math.max(...rows) };
+    }
+
+    function removeMergesAtOrAfterRow(worksheet, startRow) {
+      if (!worksheet) return;
+
+      const shouldRemove = address => {
+        const range = getMergeRangeRowsFromAddress(address);
+        return !range || range.end >= startRow;
+      };
+
+      try {
+        if (worksheet._merges) {
+          Object.keys(worksheet._merges).forEach(key => {
+            const merge = worksheet._merges[key];
+            const address = merge?.range || merge?.model?.range || key;
+            if (shouldRemove(address)) delete worksheet._merges[key];
+          });
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+
+      try {
+        if (worksheet.model && Array.isArray(worksheet.model.merges)) {
+          worksheet.model.merges = worksheet.model.merges.filter(address => !shouldRemove(address));
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+
+    function hardTrimWorksheetRowsFrom(worksheet, startRow) {
+      if (!worksheet || !Number.isFinite(startRow) || startRow < 1) return;
+
+      // 1) 삭제 구간 안에 걸친 병합은 먼저 제거한다. 병합이 남아 있으면 ExcelJS의 spliceRows 뒤에도 빈 양식 테두리가 남는 경우가 있다.
+      removeMergesAtOrAfterRow(worksheet, startRow);
+
+      // 2) 삭제 구간에 걸친 이미지/도형 앵커 제거
+      if (Array.isArray(worksheet._media)) {
+        worksheet._media = worksheet._media.filter(item => item.type !== 'image' || getImageAnchorWorksheetRow(item) < startRow);
+      }
+      if (worksheet.model && Array.isArray(worksheet.model.media)) {
+        worksheet.model.media = worksheet.model.media.filter(item => item.type !== 'image' || getImageAnchorWorksheetRow(item) < startRow);
+      }
+
+      // 3) 실제 행 삭제. rowCount만 믿지 않고, 모델/내부 row 배열까지 같이 잘라 빈 양식 잔존을 차단한다.
+      const count = Math.max(1, (worksheet.rowCount || worksheet.actualRowCount || startRow) - startRow + 1);
+      try {
+        worksheet.spliceRows(startRow, count);
+      } catch (error) {
+        console.warn(error);
+      }
+
+      try {
+        if (Array.isArray(worksheet._rows)) worksheet._rows.length = Math.max(0, startRow - 1);
+      } catch (error) {
+        console.warn(error);
+      }
+
+      try {
+        if (worksheet.model && Array.isArray(worksheet.model.rows)) {
+          worksheet.model.rows = worksheet.model.rows.filter(rowModel => Number(rowModel.number || 0) < startRow);
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+
+    function deleteDataAnalysisNoRowsFromIndex(targetCount) {
+      const dataWs = workbook?.getWorksheet('DataAnalysis');
+      if (!dataWs) return 0;
+      const dataNoRows = getDataAnalysisNoRows();
+      const rowsToDelete = dataNoRows.slice(targetCount).sort((a, b) => b - a);
+      rowsToDelete.forEach(rowNumber => dataWs.spliceRows(rowNumber, 1));
+      return rowsToDelete.length;
+    }
+
+
+    function getImageAnchorWorksheetRow(image) {
+      // ExcelJS 앵커는 대체로 0-base(nativeRow/row)라 실제 엑셀 행번호 비교용으로 +1 처리한다.
+      return getImageAnchorRow(image) + 1;
+    }
+
+    function getImageBlockRanges() {
+      const noRows = getImageAnalysisNoRows();
+      if (!noRows.length) return [];
+      const ws = workbook?.getWorksheet('ImageAnalysis');
+      const ranges = [];
+
+      // ImageAnalysis의 실제 한 폼은 NO 행 바로 위 행부터 시작한다.
+      // 예: DataAnalysis 링크가 B2:O30이면 ImageAnalysis의 NO는 3행에 있다.
+      // 그래서 300번부터 삭제할 때는 NO 300 행이 아니라, 그 위의 폼 시작 행까지 함께 삭제해야 한다.
+      for (let i = 0; i < noRows.length; i += 1) {
+        const noRow = noRows[i];
+        const startRow = Math.max(1, noRow - 1);
+        const nextNoRow = noRows[i + 1];
+        const endRow = nextNoRow ? Math.max(startRow, nextNoRow - 2) : (ws?.rowCount || ws?.actualRowCount || noRow);
+        ranges.push({ index: i, noRow, startRow, endRow });
+      }
+
+      return ranges;
+    }
+
+    function findLastImageAnalysisUsedBlockInfo() {
+      const imageWs = workbook?.getWorksheet('ImageAnalysis');
+      if (!imageWs) return { keepCount: 0, lastImageRow: 0, lastBlock: null, blocks: [] };
+
+      const blocks = getImageBlockRanges();
+      if (!blocks.length) return { keepCount: 0, lastImageRow: 0, lastBlock: null, blocks: [] };
+
+      const images = getWorksheetImagesSafe(imageWs);
+      const imageRows = images
+        .map(getImageAnchorWorksheetRow)
+        .filter(row => Number.isFinite(row))
+        .sort((a, b) => a - b);
+
+      if (!imageRows.length) return { keepCount: 0, lastImageRow: 0, lastBlock: null, blocks };
+
+      const lastImageRow = imageRows[imageRows.length - 1];
+      let lastBlockIndex = -1;
+
+      for (let i = 0; i < blocks.length; i += 1) {
+        const block = blocks[i];
+        if (lastImageRow >= block.startRow && lastImageRow <= block.endRow) {
+          lastBlockIndex = i;
+          break;
+        }
+      }
+
+      // 이미지 앵커가 블록 끝 경계 밖으로 조금 벗어나는 파일도 있으므로,
+      // 정확히 포함되는 블록이 없으면 마지막 이미지 행보다 위에 시작한 가장 마지막 블록을 유지 기준으로 삼는다.
+      if (lastBlockIndex < 0) {
+        for (let i = 0; i < blocks.length; i += 1) {
+          if (blocks[i].startRow <= lastImageRow) lastBlockIndex = i;
+        }
+      }
+
+      const keepCount = Math.max(0, lastBlockIndex + 1);
+      return {
+        keepCount,
+        lastImageRow,
+        lastBlock: lastBlockIndex >= 0 ? blocks[lastBlockIndex] : null,
+        blocks
+      };
+    }
+
+    function findImageBlocksWithImageInfo() {
+      const imageWs = workbook?.getWorksheet('ImageAnalysis');
+      const blocks = getImageBlockRanges();
+      if (!imageWs || !blocks.length) return blocks.map(block => ({ ...block, hasImage: false, imageCount: 0 }));
+
+      const imageRows = getWorksheetImagesSafe(imageWs)
+        .map(getImageAnchorWorksheetRow)
+        .filter(row => Number.isFinite(row));
+
+      return blocks.map(block => {
+        const imageCount = imageRows.filter(row => row >= block.startRow && row <= block.endRow).length;
+        return {
+          ...block,
+          hasImage: imageCount > 0,
+          imageCount
+        };
+      });
+    }
+
+    function removeEmptyImageFormsIfEnabled() {
+      if (!emptyImageBlockRemoveEnabled || !emptyImageBlockRemoveEnabled.checked) {
+        return { removed: 0, keepCount: null, message: '' };
+      }
+
+      const imageWs = workbook?.getWorksheet('ImageAnalysis');
+      const dataWs = workbook?.getWorksheet('DataAnalysis');
+      if (!imageWs || !dataWs) return { removed: 0, keepCount: null, message: 'ImageAnalysis 또는 DataAnalysis 시트를 찾지 못했습니다.' };
+
+      const blocks = findImageBlocksWithImageInfo();
+      if (!blocks.length) return { removed: 0, keepCount: 0, message: 'ImageAnalysis NO 폼을 찾지 못했습니다.' };
+
+      const emptyBlocks = blocks.filter(block => !block.hasImage);
+      if (!emptyBlocks.length) {
+        return { removed: 0, keepCount: blocks.length, message: `이미지 없는 폼 없음: ${blocks.length}건 유지` };
+      }
+
+      // DataAnalysis는 ImageAnalysis의 NO 순서와 같은 순번의 연결 행을 갖는 구조다.
+      // 따라서 ImageAnalysis에서 삭제할 블록 index와 동일한 index의 DataAnalysis NO 행을 같이 삭제한다.
+      const dataNoRows = getDataAnalysisNoRows();
+
+      // 행 삭제는 아래쪽부터 해야 위쪽 행 번호가 밀리지 않는다.
+      const emptyBlocksDesc = emptyBlocks.slice().sort((a, b) => b.startRow - a.startRow);
+      for (const block of emptyBlocksDesc) {
+        const deleteCount = Math.max(1, block.endRow - block.startRow + 1);
+        imageWs.spliceRows(block.startRow, deleteCount);
+      }
+
+      const dataDeleteRowsDesc = emptyBlocks
+        .map(block => dataNoRows[block.index])
+        .filter(row => Number.isFinite(row))
+        .sort((a, b) => b - a);
+      for (const rowNumber of dataDeleteRowsDesc) {
+        dataWs.spliceRows(rowNumber, 1);
+      }
+
+      updateImageCountStatus();
+      const keepCount = blocks.length - emptyBlocks.length;
+      return {
+        removed: emptyBlocks.length,
+        keepCount,
+        message: `이미지 없는 ImageAnalysis 양식 ${emptyBlocks.length}건 삭제 / ${keepCount}건 유지`
+      };
+    }
+
+    function getRandomInt(maxExclusive) {
+      if (!Number.isFinite(maxExclusive) || maxExclusive <= 0) return 0;
+      if (window.crypto && window.crypto.getRandomValues) {
+        const array = new Uint32Array(1);
+        window.crypto.getRandomValues(array);
+        return array[0] % maxExclusive;
+      }
+      return Math.floor(Math.random() * maxExclusive);
+    }
+
+    function getWorksheetMergeAddresses(worksheet) {
+      const addresses = [];
+      try {
+        if (worksheet?._merges) {
+          Object.keys(worksheet._merges).forEach(key => {
+            const merge = worksheet._merges[key];
+            const address = merge?.range || merge?.model?.range || key;
+            if (address) addresses.push(String(address));
+          });
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+      try {
+        if (worksheet?.model && Array.isArray(worksheet.model.merges)) {
+          worksheet.model.merges.forEach(address => {
+            if (address && !addresses.includes(String(address))) addresses.push(String(address));
+          });
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+      return addresses;
+    }
+
+    function splitCellAddress(address) {
+      const m = String(address || '').replace(/\$/g, '').match(/^([A-Z]+)(\d+)$/i);
+      if (!m) return null;
+      return { col: m[1].toUpperCase(), row: Number(m[2]) };
+    }
+
+    function offsetMergeAddress(address, sourceStartRow, targetStartRow) {
+      const parts = String(address || '').split(':');
+      if (parts.length !== 2) return null;
+      const a = splitCellAddress(parts[0]);
+      const b = splitCellAddress(parts[1]);
+      if (!a || !b) return null;
+      const offset = targetStartRow - sourceStartRow;
+      return `${a.col}${a.row + offset}:${b.col}${b.row + offset}`;
+    }
+
+    function copyMergesInRowBlock(worksheet, sourceStartRow, targetStartRow, rowCount, mergeAddressesBefore) {
+      const sourceEndRow = sourceStartRow + rowCount - 1;
+      const addresses = mergeAddressesBefore || getWorksheetMergeAddresses(worksheet);
+      addresses.forEach(address => {
+        const range = getMergeRangeRowsFromAddress(address);
+        if (!range) return;
+        if (range.start < sourceStartRow || range.end > sourceEndRow) return;
+        const newAddress = offsetMergeAddress(address, sourceStartRow, targetStartRow);
+        if (!newAddress) return;
+        try {
+          worksheet.mergeCells(newAddress);
+        } catch (error) {
+          // 이미 병합된 영역이 있으면 무시한다. 행 복사 자체가 더 중요하다.
+          console.warn(error);
+        }
+      });
+    }
+
+    function cloneImageRangeByBlock(image, sourceStartRow, targetStartRow) {
+      const tl = image?.range?.tl || image?.range?.model?.tl || {};
+      const br = image?.range?.br || image?.range?.model?.br || {};
+      const offset = targetStartRow - sourceStartRow;
+      const topRow = getImageAnchorRow(image) + offset;
+      const bottomRow = getImageAnchorEndRow(image) + offset;
+      const topCol = Number.isFinite(Number(tl.nativeCol)) ? Number(tl.nativeCol) : Number(tl.col ?? 0);
+      const bottomCol = Number.isFinite(Number(br.nativeCol)) ? Number(br.nativeCol) : Number(br.col ?? topCol + 1);
+      return {
+        tl: { col: topCol, row: topRow },
+        br: { col: bottomCol, row: bottomRow },
+        editAs: 'absolute'
+      };
+    }
+
+    function getImagesInImageBlock(worksheet, block) {
+      if (!worksheet || !block) return [];
+      return getWorksheetImagesSafe(worksheet).filter(image => {
+        const row = getImageAnchorWorksheetRow(image);
+        return row >= block.startRow && row <= block.endRow;
+      });
+    }
+
+    function copyImagesInBlock(worksheet, sourceBlock, targetStartRow) {
+      const images = getImagesInImageBlock(worksheet, sourceBlock);
+      let copied = 0;
+      images.forEach(image => {
+        const imageId = image?.imageId ?? image?.image?.imageId;
+        if (imageId === undefined || typeof worksheet.addImage !== 'function') return;
+        worksheet.addImage(imageId, cloneImageRangeByBlock(image, sourceBlock.startRow, targetStartRow));
+        copied += 1;
+      });
+      return copied;
+    }
+
+    function copyDataAnalysisRowByIndex(dataWs, sourceIndex, targetRowNumber) {
+      const dataNoRows = getDataAnalysisNoRows();
+      const sourceRowNumber = dataNoRows[sourceIndex];
+      if (!sourceRowNumber) throw new Error('복사할 DataAnalysis NO 행을 찾지 못했습니다.');
+
+      // 중요:
+      // DataAnalysis 하단에는 검사 결과 표/이미지/요약 영역이 이어질 수 있으므로
+      // 기존 target 행에 덮어쓰면 하단 내용이 사라진다.
+      // 따라서 마지막 NO 행 바로 아래에 새 행을 "삽입"해서 아래쪽 기존 행 전체를 밀어낸 뒤,
+      // 값은 랜덤 선택된 기준 NO 행에서 가져오고, 배경/테두리 패턴은 직전 NO 행 스타일을 따라간다.
+      const safeTargetRow = Math.max(1, Number(targetRowNumber) || ((dataWs.rowCount || 1) + 1));
+      const patternRowNumber = dataNoRows.length ? dataNoRows[dataNoRows.length - 1] : sourceRowNumber;
+
+      dataWs.spliceRows(safeTargetRow, 0, []);
+
+      const srcData = dataWs.getRow(sourceRowNumber);
+      const patternData = dataWs.getRow(patternRowNumber);
+      const dstData = dataWs.getRow(safeTargetRow);
+
+      dstData.height = patternData.height || srcData.height;
+      for (let col = 1; col <= Math.max(dataWs.columnCount || 1, 30); col += 1) {
+        const srcCell = srcData.getCell(col);
+        const patternCell = patternData.getCell(col);
+        const dstCell = dstData.getCell(col);
+
+        // 스타일은 직전 NO 행을 복사해서 하단 행 색상/테두리 패턴을 유지한다.
+        cloneCellForAppend(patternCell, dstCell);
+        // 데이터 값은 랜덤으로 선택된 ImageAnalysis 기준 행과 연결된 DataAnalysis 행에서 가져온다.
+        dstCell.value = srcCell.value;
+        if (srcCell.numFmt) dstCell.numFmt = srcCell.numFmt;
+      }
+      dstData.commit && dstData.commit();
+    }
+
+    function trimImageAnalysisAfterLastRealImageForm() {
+      const imageWs = workbook?.getWorksheet('ImageAnalysis');
+      if (!imageWs) return { keepCount: 0, removedDataRows: 0, message: 'ImageAnalysis 시트를 찾지 못했습니다.' };
+
+      const blocks = findImageBlocksWithImageInfo();
+      if (!blocks.length) return { keepCount: 0, removedDataRows: 0, message: 'ImageAnalysis NO 폼을 찾지 못했습니다.' };
+
+      let lastImageBlockIndex = -1;
+      for (let i = 0; i < blocks.length; i += 1) {
+        if (blocks[i].hasImage) lastImageBlockIndex = i;
+      }
+
+      if (lastImageBlockIndex < 0) {
+        hardTrimWorksheetRowsFrom(imageWs, blocks[0].startRow);
+        const removed = deleteDataAnalysisNoRowsFromIndex(0);
+        return { keepCount: 0, removedDataRows: removed, message: `이미지가 있는 양식 없음 / ImageAnalysis 전체 폼 삭제 / DataAnalysis NO ${removed}행 삭제` };
+      }
+
+      const keepCount = lastImageBlockIndex + 1;
+      const lastImageBlock = blocks[lastImageBlockIndex];
+      const nextBlock = blocks[lastImageBlockIndex + 1];
+      const deleteStartRow = nextBlock ? nextBlock.startRow : lastImageBlock.endRow + 1;
+      let removedDataRows = 0;
+
+      if (deleteStartRow && deleteStartRow <= (imageWs.rowCount || imageWs.actualRowCount || deleteStartRow)) {
+        hardTrimWorksheetRowsFrom(imageWs, deleteStartRow);
+      }
+
+      removedDataRows = deleteDataAnalysisNoRowsFromIndex(keepCount);
+
+      return {
+        keepCount,
+        removedDataRows,
+        message: `마지막 실제 이미지 양식 ${keepCount}번 이후 빈 양식 삭제 / DataAnalysis 이후 NO ${removedDataRows}행 삭제`
+      };
+    }
+
+    function adjustImageAndLinkedRowsIfEnabled() {
+      // 1) 먼저 마지막 실제 이미지 양식 이후의 빈 양식은 무조건 삭제한다.
+      //    이 단계가 끝난 뒤에만 추가를 진행해야 빈 양식이 복사되거나 번호가 꼬이지 않는다.
+      const tailTrimResult = trimImageAnalysisAfterLastRealImageForm();
+
+      if (!imageCountAdjustEnabled || !imageCountAdjustEnabled.checked) {
+        const noResult = renumberLinkedImageDataNo();
+        const p10Result = updateDataAnalysisP10NoCount();
+        updateImageCountStatus();
+        return {
+          count: noResult.count,
+          message: `${tailTrimResult.message ? tailTrimResult.message + ' / ' : ''}${noResult.message}${p10Result.count !== null ? ' / P10=' + p10Result.count : ''}`
+        };
+      }
+
+      const target = Number(imageTargetCountInput?.value);
+      if (!Number.isFinite(target) || target < 0) {
+        throw new Error('이미지 목표 수량을 0 이상의 숫자로 입력하세요.');
+      }
+
+      const imageWs = workbook?.getWorksheet('ImageAnalysis');
+      const dataWs = workbook?.getWorksheet('DataAnalysis');
+      if (!imageWs || !dataWs) throw new Error('ImageAnalysis 또는 DataAnalysis 시트를 찾지 못했습니다.');
+
+      const targetCount = Math.floor(target);
+      let blocks = getImageBlockRanges();
+      let current = blocks.length;
+
+      if (targetCount < current) {
+        const tailBlock = blocks[targetCount];
+        const deleteStartRow = tailBlock?.startRow;
+
+        if (!deleteStartRow) {
+          throw new Error('삭제 시작 폼 행을 찾지 못했습니다. ImageAnalysis NO 구조를 확인하세요.');
+        }
+
+        hardTrimWorksheetRowsFrom(imageWs, deleteStartRow);
+        removeWorksheetImagesAfterCount(imageWs, targetCount);
+        const removedDataRows = deleteDataAnalysisNoRowsFromIndex(targetCount);
+
+        blocks = getImageBlockRanges();
+        current = blocks.length;
+
+        if (imageCountHelp) {
+          imageCountHelp.textContent = `목표 ${targetCount}건 기준: ImageAnalysis ${deleteStartRow}행부터 끝까지 양식 삭제 / DataAnalysis 이후 NO ${removedDataRows}행 삭제`;
+        }
+      }
+
+      let added = 0;
+      let copiedImageCount = 0;
+
+      if (targetCount > current) {
+        if (current === 0) throw new Error('기준 ImageAnalysis NO 블록이 없어 새 이미지 양식을 만들 수 없습니다.');
+
+        // 2) 추가 기준은 현재 남아 있는 실제 이미지 양식이다.
+        //    가능하면 마지막 이미지 양식은 제외하고 그 이전 번호 양식 중에서 복사한다.
+        const imageCandidatesAll = findImageBlocksWithImageInfo().filter(block => block.hasImage);
+        if (!imageCandidatesAll.length) throw new Error('이미지가 있는 복사 기준 양식을 찾지 못했습니다.');
+
+        const sourceCandidates = imageCandidatesAll.length > 1
+          ? imageCandidatesAll.slice(0, imageCandidatesAll.length - 1)
+          : imageCandidatesAll;
+
+        const originalSourceCandidates = sourceCandidates.map(block => ({ ...block }));
+
+        while (getImageBlockRanges().length < targetCount) {
+          blocks = getImageBlockRanges();
+          const lastBlock = blocks[blocks.length - 1];
+          if (!lastBlock) throw new Error('추가 위치를 찾지 못했습니다.');
+
+          const sourceBlock = originalSourceCandidates[getRandomInt(originalSourceCandidates.length)];
+          const sourceIndex = sourceBlock.index;
+          const rowCount = Math.max(1, sourceBlock.endRow - sourceBlock.startRow + 1);
+
+          const appendImageStart = lastBlock.endRow + 1;
+          const mergeAddressesBefore = getWorksheetMergeAddresses(imageWs);
+
+          copyRowBlock(imageWs, sourceBlock.startRow, appendImageStart, rowCount);
+          copyMergesInRowBlock(imageWs, sourceBlock.startRow, appendImageStart, rowCount, mergeAddressesBefore);
+          copiedImageCount += copyImagesInBlock(imageWs, sourceBlock, appendImageStart);
+
+          const latestDataNoRows = getDataAnalysisNoRows();
+          const appendDataRow = latestDataNoRows.length
+            ? latestDataNoRows[latestDataNoRows.length - 1] + 1
+            : (dataWs.rowCount || 1) + 1;
+
+          copyDataAnalysisRowByIndex(dataWs, sourceIndex, appendDataRow);
+
+          added += 1;
+        }
+      }
+
+      const noResult = renumberLinkedImageDataNo();
+      const p10Result = updateDataAnalysisP10NoCount();
+      updateImageCountStatus();
+      return {
+        count: noResult.count,
+        message: `${tailTrimResult.message ? tailTrimResult.message + ' / ' : ''}이미지 폼/NO 수량 ${current}건 → ${targetCount}건 조정${added ? ` / 이전 정상 양식 통째 복사 추가 ${added}건 / 이미지 ${copiedImageCount}건 복사` : ''} / DataAnalysis 데이터 동시 복사 / ${noResult.message}${p10Result.count !== null ? ' / P10=' + p10Result.count : ''}`
+      };
+    }
+
+    function rescanWorkbookDetectedItems() {
+      if (!workbook) return;
+      const items = [];
+      const seenKeys = new Set();
+      creationTimeItem = null;
+      lotNumberItem = null;
+
+      workbook.eachSheet(worksheet => {
+        if (String(worksheet.name).toLowerCase() === 'dataanalysis') {
+          const maxSearchRow = Math.min(10, worksheet.rowCount || 10);
+          const creationCells = [];
+          const lotCells = [];
+
+          for (let rowNumber = 1; rowNumber <= maxSearchRow; rowNumber += 1) {
+            const row = worksheet.getRow(rowNumber);
+            row.eachCell({ includeEmpty: false }, cell => {
+              const text = cellText(cell);
+              const parsedCreation = parseCreationTime(text);
+              if (parsedCreation) creationCells.push({ cell, rowNumber, text, parsed: parsedCreation });
+              const parsedLot = parseLotNumber(text);
+              if (parsedLot) lotCells.push({ cell, rowNumber, text, parsed: parsedLot });
+            });
+          }
+
+          creationCells.sort((a, b) => a.rowNumber !== b.rowNumber ? a.rowNumber - b.rowNumber : a.cell.col - b.cell.col);
+          lotCells.sort((a, b) => a.rowNumber !== b.rowNumber ? a.rowNumber - b.rowNumber : a.cell.col - b.cell.col);
+
+          if (creationCells[0]) {
+            creationTimeItem = {
+              sheetName: worksheet.name, worksheet, rowNumber: creationCells[0].rowNumber,
+              colNumber: creationCells[0].cell.col, cellAddress: creationCells[0].cell.address,
+              originalText: creationCells[0].text, parsed: creationCells[0].parsed
+            };
+          }
+          if (lotCells[0]) {
+            lotNumberItem = {
+              sheetName: worksheet.name, worksheet, rowNumber: lotCells[0].rowNumber,
+              colNumber: lotCells[0].cell.col, cellAddress: lotCells[0].cell.address,
+              originalText: lotCells[0].text, parsed: lotCells[0].parsed
+            };
+          }
+        }
+
+        worksheet.eachRow({ includeEmpty: false }, row => {
+          const no = findNoInRow(row);
+          const dateCells = [];
+          row.eachCell({ includeEmpty: false }, cell => {
+            const text = cellText(cell);
+            const parsed = parseTestDate(text);
+            if (parsed) dateCells.push({ cell, text, parsed });
+          });
+          if (dateCells.length === 0) return;
+          dateCells.sort((a, b) => a.cell.col - b.cell.col);
+          const first = dateCells[0];
+          const uniqueKey = `${worksheet.name}|${row.number}|${no}|${first.parsed.full}`;
+          if (seenKeys.has(uniqueKey)) return;
+          seenKeys.add(uniqueKey);
+          items.push({
+            sheetName: worksheet.name, worksheet, rowNumber: row.number, colNumber: first.cell.col,
+            cellAddress: first.cell.address, no, originalText: first.text, parsed: first.parsed,
+            oldDate: first.parsed.date, oldTime: first.parsed.time,
+            duplicateCountInRow: dateCells.length
+          });
+        });
+      });
+
+      detectedItems = items;
+    }
+
+    // 기존 applyChanges를 NO 연동/이미지 수량 조정 지원 버전으로 재정의한다.
+    async function applyChanges() {
+      if (!workbook || !selectedFile) {
+        setStatus(workStatus, 'warn', '먼저 엑셀 파일을 선택하세요.');
+        return;
+      }
+
+      let protectedSheets = [];
+      try {
+        protectedSheets = await unlockProtectedWorksheetsForEdit();
+        if (protectedSheets.length > 0) {
+          setStatus(workStatus, '', `보호된 시트 ${protectedSheets.length}개 잠금 해제 후 수정 중입니다.`);
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus(workStatus, 'warn', error.message || '시트 보호 해제 중 오류가 발생했습니다.');
+        return;
+      }
+
+      let imageAdjustResult = { changed: false, message: '' };
+      try {
+        imageAdjustResult = adjustImageAndLinkedRowsIfEnabled();
+        rescanWorkbookDetectedItems();
+        renderPreview();
+      } catch (error) {
+        console.error(error);
+        setStatus(workStatus, 'warn', error.message || '이미지/NO 연동 조정 중 오류가 발생했습니다.');
+        return;
+      }
+
+      const targets = getAllTargetRows();
+      if (targets.length === 0) {
+        setStatus(workStatus, 'warn', '변경 대상이 없습니다.');
+        return;
+      }
+
+      for (const t of targets) {
+        const cell = t.item.worksheet.getCell(t.item.rowNumber, t.item.colNumber);
+        cell.value = t.after;
+      }
+
+      const creationUpdate = getCreationTimeUpdate();
+      if (creationUpdate) {
+        const creationCell = creationUpdate.item.worksheet.getCell(
+          creationUpdate.item.rowNumber,
+          creationUpdate.item.colNumber
+        );
+        creationCell.value = creationUpdate.after;
+      }
+
+      const lotUpdate = getLotNumberUpdate();
+      if (lotUpdate) {
+        const lotCell = lotUpdate.item.worksheet.getCell(
+          lotUpdate.item.rowNumber,
+          lotUpdate.item.colNumber
+        );
+        lotCell.value = lotUpdate.after;
+      }
+
+      const p10Update = updateDataAnalysisP10NoCount();
+
+      try {
+        await relockProtectedWorksheets(protectedSheets);
+      } catch (error) {
+        console.error(error);
+        setStatus(workStatus, 'warn', '수정은 완료되었지만 시트 재잠금 중 오류가 발생했습니다: ' + (error.message || error));
+        return;
+      }
+
+      const rawBuffer = await workbook.xlsx.writeBuffer();
+      const lockedBuffer = await patchXlsxDrawingLocks(rawBuffer);
+      changedBlob = new Blob([lockedBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      changedFileName = makeOutputName(selectedFile.name);
+      downloadBtn.disabled = false;
+      setStatus(workStatus, 'ok', `변경 실행 완료: Test Date ${targets.length}건 수정됨${creationUpdate ? ' / Creation Time 1건 수정됨' : ''}${lotUpdate ? ' / Lot Number 1건 수정됨' : ''}${imageAdjustResult.message ? ' / ' + imageAdjustResult.message : ''}${p10Update && p10Update.count !== null ? ' / DataAnalysis P10=' + p10Update.count : ''}${protectedSheets.length > 0 ? ` / 보호 시트 ${protectedSheets.length}개 재잠금 완료` : ''}. 다운로드 버튼을 누르세요.`);
     }
 
     async function downloadChangedFile() {
@@ -2580,12 +3772,14 @@ const firebaseConfig = {
       try {
         const items = await loadWorkbook(selectedFile);
         if (items.length === 0) {
+          updateImageCountStatus();
           setStatus(fileStatus, 'warn', `선택된 파일: ${selectedFile.name}`);
           setStatus(workStatus, 'warn', 'Test Date 항목을 찾지 못했습니다.');
           previewBox.innerHTML = '<div class="empty">Test Date: YYYY/MM/DD HH:MM 형식의 셀을 찾지 못했습니다.</div>';
           return;
         }
 
+        updateImageCountStatus();
         const duplicateRows = items.filter(x => (x.duplicateCountInRow || 1) > 1).length;
         const duplicateNotice = duplicateRows > 0 ? ` / 중복 감지 ${duplicateRows}행 자동 정리` : '';
         const typeCheck = checkFileType(selectedFile);
@@ -2600,6 +3794,13 @@ const firebaseConfig = {
         setStatus(workStatus, 'warn', err.message || '엑셀 파일을 읽는 중 오류가 발생했습니다.');
       }
     });
+
+    if (imageCountDetectBtn) {
+      imageCountDetectBtn.addEventListener('click', () => {
+        const count = updateImageCountStatus();
+        setStatus(workStatus, count > 0 ? 'ok' : 'warn', count > 0 ? `이미지 수 확인 완료: ${count}건` : '이미지 수를 확인할 파일을 먼저 선택하세요.');
+      });
+    }
 
     previewBtn.addEventListener('click', renderPreview);
     convertBtn.addEventListener('click', applyChanges);
@@ -2629,6 +3830,10 @@ const firebaseConfig = {
       if (document.getElementById('saveOffsetMin')) document.getElementById('saveOffsetMin').value = '2';
       if (document.getElementById('saveOffsetSec')) document.getElementById('saveOffsetSec').value = '0';
       if (document.getElementById('sheetProtectPassword')) document.getElementById('sheetProtectPassword').value = '';
+      if (imageDetectedCountInput) imageDetectedCountInput.value = '파일 선택 전';
+      if (imageTargetCountInput) imageTargetCountInput.value = '';
+      if (imageCountAdjustEnabled) imageCountAdjustEnabled.checked = false;
+      if (imageCountHelp) imageCountHelp.textContent = '엑셀 파일을 선택하면 ImageAnalysis 시트의 이미지 수를 자동 확인합니다.';
       document.getElementById('dateFormat').value = 'slash';
       updateDateFormatLabels();
       document.querySelector('input[name="mode"][value="all"]').checked = true;
